@@ -1,6 +1,6 @@
 # Task skills (generated per workspace)
 
-Task skills turn the KB into deliverables (e.g. drafting a compliance matrix, a proposal section, a RACI analysis). They are generated only when the user approves them, at most 2–4 per workspace, so they do not compete for triggering.
+Task skills turn the KB into deliverables (e.g. drafting a compliance matrix, a proposal section, a RACI analysis). They are generated only when the user approves them (in the autonomous mode of init the user delegates this approval: generate the preset templates whose material was found), at most 2–4 per workspace, so they do not compete for triggering.
 
 ## Propose
 1. From discovery and the preset (`presets/<name>/task-skills/*.SKILL.md.tpl`), list candidates that match material actually present (a requirements matrix → compliance skill; a proposal template → proposal-section skill; RACI matrices → RACI skill; a transition checklist → transition skill).

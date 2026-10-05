@@ -75,6 +75,8 @@ para usar com `/kb`. O usuário não precisa entender graphify, ontologias, RDF 
 
 - **Discovery antes de qualquer pergunta:** a skill inspeciona a pasta, o versionamento, as políticas e as ferramentas
   sem abrir o conteúdo dos documentos (`references/discovery.md`).
+- **Modo autônomo:** a primeira pergunta do init. Escolhido esse modo, a skill não pergunta mais nada: assume a opção
+  recomendada em cada decisão, aprova os checkpoints sozinha e lista no resumo final todas as decisões assumidas.
 - **Entrevista curta:** rodadas de até 4 perguntas, com a opção recomendada primeiro (`references/interview.md`).
 - **graphify automático:** instalação a partir do fork e build do grafo, com escopo seguro por padrão (código +
   `docs/` + `wiki/`; `raw/` só com autorização por documento).
@@ -179,7 +181,9 @@ Os comandos usam `REPO` como o caminho do clone. Ajuste a variável se clonar em
       OneDrive, as políticas gerenciadas, `uv`/Python e o graphify: versão esperada e origem no fork. Se faltar
       graphify ou a versão divergir, ela avisa e instala ou atualiza antes de seguir. O conteúdo dos documentos não é
       aberto nessa fase.
-   2. ✋ **Entrevista:** rodadas de até 4 perguntas, com o padrão recomendado em primeiro: propósito e preset, idioma,
+   2. ✋ **Modo de configuração e entrevista:** a primeira pergunta é o modo. **Autônomo** (recomendado): a entrevista
+      e os checkpoints ✋ abaixo são resolvidos com as opções recomendadas e revistos no resumo final.
+      **Guiado:** rodadas de até 4 perguntas, com o padrão recomendado em primeiro: propósito e preset, idioma,
       versionamento, cópia do engine no workspace, confidencialidade (o que o Claude pode ler por inteiro), precedência de versões, período de
       revisão de notas, escopo do graphify (código + `docs/` + `wiki/`, e quais documentos de `raw/` liberar) e task
       skills.

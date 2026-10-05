@@ -23,6 +23,8 @@ confirmation.
   kb-setup with `npx skills add wagnerpinheiro/graphify-kb --skill kb-setup -g -a claude-code`. The workspace README
   gets a "Requirements and installation" section per OS (uv, Claude Code, Node.js, kb-setup, graphify). Generated
   files are stamped with the kb-setup version instead of the engine version.
+- init asks first: autonomous (recommended defaults, checkpoints auto-approved and listed at the end) or guided
+  (interview rounds and approval checkpoints). `kb/SETUP.md` records `Setup mode:` and marks assumed decisions.
 - Interview Round 3 asks whether to copy the engine into the workspace (recommended for OneDrive/both or read-only
   consumers). The old R3.4 (note conventions) is folded into R2.4.
 - **Migration from 2.0.x:**

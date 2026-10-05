@@ -74,6 +74,8 @@ use with `/kb`. The user does not need to understand graphify, ontologies, RDF o
 
 - **Discovery before any question:** the skill inspects the folder, versioning, policies and tools without opening
   document contents (`references/discovery.md`).
+- **Autonomous mode:** the first question of init. Choose it and the skill asks nothing else: it takes the recommended
+  option at every decision, approves the checkpoints itself and lists every assumed decision in the closing summary.
 - **Short interview:** rounds of up to 4 questions, with the recommended option first (`references/interview.md`).
 - **Automatic graphify:** install from the fork and build the graph, with a safe scope by default (code + `docs/` +
   `wiki/`; `raw/` only with per-document authorization).
@@ -177,7 +179,9 @@ The commands use `REPO` for the clone path. Change the variable if you clone som
       OneDrive, managed policies, `uv`/Python and graphify: expected version and fork origin. If graphify is missing
       or the version differs, it tells you and installs or upgrades it before going on. Document contents are not
       opened in this phase.
-   2. ✋ **Interview:** rounds of up to 4 questions, recommended default first: purpose and preset, language,
+   2. ✋ **Setup mode and interview:** the first question is the mode. **Autonomous** (recommended): the interview and
+      the ✋ checkpoints below are resolved with the recommended options and reviewed in the closing summary.
+      **Guided:** rounds of up to 4 questions, recommended default first: purpose and preset, language,
       versioning, engine copy in the workspace, confidentiality (what Claude may read in full), version precedence, note review period, graphify
       scope (code + `docs/` + `wiki/`, and which `raw/` documents to allow) and task skills.
    3. **Zettelkasten scaffold:** `kb.py scaffold` creates `raw/ wiki/ kb/ docs/`, `kb/config.yaml` and the

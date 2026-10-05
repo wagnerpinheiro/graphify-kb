@@ -1,6 +1,7 @@
 # KB setup record — {{TITLE}}
 
 Created by kb-setup {{KB_SETUP_VERSION}} (engine {{ENGINE_VERSION}}) on {{DATE}} by {{USER}}. Update this file on adopt/upgrade/review decisions.
+Setup mode: {{SETUP_MODE}} (autonomous | guided)
 
 ## Discovery
 {{DISCOVERY_SUMMARY}}

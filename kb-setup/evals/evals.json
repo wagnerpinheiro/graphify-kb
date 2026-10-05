@@ -4,7 +4,7 @@
   {
    "id": 1,
    "name": "empty-workspace-zettelkasten",
-   "prompt": "I'm starting a brand-new workspace for a research project on battery recycling regulations in the EU. The folder is empty: {WS}. Please set it up so my team can keep notes now and add PDFs/spreadsheets later, and so Claude can answer questions with sources. We version with git. Content language: English. (Test harness: you cannot ask me questions — when you would ask, pick the recommended default and list the question and your choice in {OUT}/questions.md.)",
+   "prompt": "I'm starting a brand-new workspace for a research project on battery recycling regulations in the EU. The folder is empty: {WS}. Please set it up so my team can keep notes now and add PDFs/spreadsheets later, and so Claude can answer questions with sources. We version with git. Content language: English. (Test harness: you cannot ask me questions — choose the autonomous setup mode; when you would ask, pick the recommended default and list the question and your choice in {OUT}/questions.md.)",
    "expected_output": "Zettelkasten skeleton (raw/ wiki/ kb/ docs/), kb/config.yaml with engine_version, README explaining the method, CLAUDE.md with KB rules, .claude/skills/kb/SKILL.md generated, 3 example notes + a guided first permanent note with header (type, last_reviewed, reviewed_by), kb update runs and ask finds the note, .gitignore block, kb/SETUP.md with decisions; graphify installed from the graphify-kb fork at the expected version and a graph built over code + docs/ + wiki/ (graphify-out/graph.json), version and source recorded in kb/config.yaml and kb/SETUP.md; no domain ontology forced.",
    "files": [],
    "assertions": [
@@ -24,13 +24,14 @@
     "Questions the user would have been asked are listed",
     "graphify from the fork installed at the expected version (graphify --version == graphify.version in kb/config.yaml)",
     "graphify graph built (graphify-out/graph.json exists) even though the workspace is empty",
-    "kb/SETUP.md records graphify version, source and scope"
+    "kb/SETUP.md records graphify version, source and scope",
+    "kb/SETUP.md records Setup mode: autonomous and marks assumed decisions"
    ]
   },
   {
    "id": 2,
    "name": "rfp-workspace-full-init",
-   "prompt": "This folder has the documents of an RFP we must answer: {WS} (PDFs, two spreadsheets, a DOCX and a zip, in raw/rfp/). Set up the knowledge base for the bid team. We share the folder through a Teams channel synced with OneDrive. Image descriptions are allowed for all documents; do NOT let graphify read raw/ documents, but configure it for the workspace. (Test harness: you cannot ask me questions — when you would ask, pick the recommended default and list the question and your choice in {OUT}/questions.md; treat ontology/mapping/rules checkpoints as approved after you write the proposal to {OUT}/checkpoint.md.)",
+   "prompt": "This folder has the documents of an RFP we must answer: {WS} (PDFs, two spreadsheets, a DOCX and a zip, in raw/rfp/). Set up the knowledge base for the bid team. We share the folder through a Teams channel synced with OneDrive. Image descriptions are allowed for all documents; do NOT let graphify read raw/ documents, but configure it for the workspace. (Test harness: you cannot ask me questions — choose the autonomous setup mode; when you would ask, pick the recommended default and list the question and your choice in {OUT}/questions.md; treat ontology/mapping/rules checkpoints as approved after you write the proposal to {OUT}/checkpoint.md.)",
    "expected_output": "OneDrive/Teams guidance summary, converted .md beside binaries, zip extracted, duplicate PDF flagged, image described via subagent, domain ontology from the rfi-proposal preset with placeholders filled, mappings for both spreadsheets (requirements + RACI) extracted, topics/facts rules that surface proposal validity 60 (RFP) vs 90 (contract terms) and environments 4 vs 3, validate ok, /kb skill + CLAUDE.md coexistence rules, graphify from the graphify-kb fork (expected version, recorded in kb/config.yaml + kb/SETUP.md) with raw/.graphifyignore excluding every raw document and a graph built over code + docs/ + wiki/, kb/SETUP.md, suggestions.",
    "files": [
     "corpus-rfp"
@@ -53,7 +54,8 @@
     "graphify graph built (graphify-out/graph.json) without raw/ documents (raw/.graphifyignore lists them; no raw/graphify-out cache)",
     "OneDrive/Teams guidance follows Microsoft (shortcut + always keep on device + conflict copies)",
     "kb/SETUP.md records decisions and authorizations",
-    "Checkpoint proposal written (ontology/mappings/rules)"
+    "Checkpoint proposal written (ontology/mappings/rules)",
+    "kb/SETUP.md records Setup mode: autonomous and marks assumed decisions"
    ]
   },
   {
