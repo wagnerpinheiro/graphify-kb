@@ -1,71 +1,131 @@
-# kb-setup: base de conhecimento local por workspace (graph-RAG + graphify)
+# kb-setup: a local knowledge base per workspace (graph-RAG + graphify)
 
-## O que é
+🇺🇸 English | 🇧🇷 [Português](README.pt-BR.md)
 
-`kb-setup` é uma meta-skill do Claude Code. Ela cria, adota, atualiza e avalia uma **base de conhecimento (KB) local
-por workspace de documentos** (RFI/RFP, contratos, pesquisa, documentação de projeto). A KB é um graph-RAG
-determinístico em **RDF/OWL + SHACL + SPARQL**: sem servidor, sem Docker, sem MCP e sem chave de API. Os arquivos ficam
-organizados nas pastas Zettelkasten `raw/` (fontes oficiais), `wiki/` (notas do time), `kb/` (ontologia, mapeamentos,
-configuração) e `docs/` (entregáveis, nunca indexados). Cada workspace ganha uma skill `/kb` para consulta e
-manutenção e, se você aprovar, algumas task skills.
+## What it is
 
-O **graphify é obrigatório** e vem **deste fork** (`graphify-kb`). A kb-setup e o graphify são versionados juntos neste
-repositório. Toda execução de `init`, `adopt` e `update` instala ou confere o graphify e constrói o grafo sobre
-código + `docs/` + `wiki/`. Documentos de `raw/` só entram com autorização por documento (`raw/.graphifyignore`).
+`kb-setup` is a Claude Code meta skill. It creates, adopts, updates and evaluates a **local knowledge base (KB) for
+each document workspace** (RFI/RFP, contracts, research, project documentation). The KB is a deterministic graph-RAG
+built on **RDF/OWL + SHACL + SPARQL**: no server, no Docker, no MCP and no API key. Files are organized in the
+Zettelkasten folders `raw/` (official sources), `wiki/` (team notes), `kb/` (ontology, mappings, configuration) and
+`docs/` (deliverables, never indexed). Each workspace gets a `/kb` skill for querying and maintenance and, if you
+approve them, a few task skills.
+
+**graphify is required** and comes **from this fork** (`graphify-kb`). kb-setup and graphify are versioned together in
+this repository. Every `init`, `adopt` and `update` installs or checks graphify and builds its graph over
+code + `docs/` + `wiki/`. Documents in `raw/` are included only with per-document authorization (`raw/.graphifyignore`).
 
 ```
-Claude Code ──► skill kb-setup (~/.claude/skills/kb-setup → <fork>/kb-setup)
+Claude Code ──► kb-setup skill (~/.claude/skills/kb-setup → <fork>/kb-setup)
                    │
-                   ├─► engine  scripts/kb.py   (PEP 723, roda com uv; nada instalado no workspace)
+                   ├─► engine  scripts/kb.py   (PEP 723, run with uv; nothing installed in the workspace)
                    │      └─► workspace/  raw/ wiki/ kb/ docs/  +  /kb skill  +  CLAUDE.md
                    │
-                   └─► graphify (uv tool instalado a partir deste fork)
-                          └─► workspace/graphify-out/  (grafo exploratório; fora do git)
+                   └─► graphify (uv tool installed from this fork)
+                          └─► workspace/graphify-out/  (exploratory graph; kept out of git)
 ```
 
-## Pré-requisitos
+## Goal
 
-- [`uv`](https://docs.astral.sh/uv/) (obrigatório; ele também fornece o Python que o engine usa)
+Build, on top of this fork's graphify, a **local KB for document workspaces** that combines a usage method based on the
+Zettelkasten with an **ontology-guided graph-RAG** (RDF/OWL + SHACL + SPARQL). Instead of retrieving passages that look
+like the question, it answers with typed entities and structural queries, applies precedence, detects conflicts and
+cites the page or spreadsheet row. It is deterministic and local. graphify remains the exploratory graph of code and
+themes; the two graphs are kept separate on purpose (no data bridge, `references/graphify.md`).
+
+### What the ontologies add
+
+- **Types:** the `kb:` core (`assets/core/kb-core.ttl`) aligns its classes with PROV, Dublin Core and SKOS (documents
+  and notes are `prov:Entity`, people are `prov:Agent`, glossary terms are `skos:Concept`). Domain presets
+  (`presets/rfi-proposal`, `presets/erp-rollout-program`) add their own classes, shapes, mappings and queries.
+- **Validation:** SHACL shapes (`kb-core-shapes.ttl` + the preset shapes) check the graph whenever an update changes it.
+- **Provenance:** one named graph per source, and every fact points back to its source with page, or sheet and row.
+- **Precedence:** a wiki note with `overrides:` wins; otherwise `raw/` wins over `wiki/`; within the same layer, the
+  most recent version wins (`assets/queries/precedence.rq`).
+- **Conflicts:** values consolidated per topic/fact (`topics.yaml`, `facts.yaml`) expose divergences between sources
+  and inside one source (`conflicts.rq`, `internal-inconsistencies.rq`).
+- **Saved SPARQL queries:** conflicts, gaps, RACI by role, deadlines, internal inconsistencies, notes due for review
+  (`assets/queries/`, `presets/*/queries/`).
+
+In the eval (one run, 12 questions, 6 documents) the KB scored 24/24 on accuracy and 24/24 on citation, against 21/24
+and 18/24 for graphify alone, with a much lower build cost. The sample is small; treat it as a signal, not a benchmark.
+
+### The Zettelkasten method
+
+- **Folder roles:** `raw/` holds the sources, `wiki/` the team's notes, `kb/` the generated index and graph, `docs/`
+  the deliverables (never indexed).
+- **Notes become triples:** note types `fleeting`, `literature` and `permanent`; `[[links]]` between notes become
+  `kb:linksTo`; lines such as `- Decision: …`, `- Deadline: <milestone> = YYYY-MM-DD`, `- Term: <ACRONYM> = …` and
+  `- Condition: <topic> = <value>` become facts in the graph (`references/zettelkasten.md`).
+- **Review:** each note carries `last_reviewed` and, optionally, `review_every`; `/kb stale` lists the overdue ones.
+- **An adaptation, not the orthodox method:** there is no Folgezettel numbering and `wiki/` is flat
+  (`wiki/YYYY-MM-DD-short-slug.md`); the note type lives in the header.
+
+Note: the entry search is lexical in both systems and neither uses embeddings. graphify scores node labels by term and
+then walks the graph; `KB ask` weights term matches by property. The ontology's gain comes after the search: types,
+validation, structural queries, precedence, conflicts and provenance.
+
+### Guided setup for non-technical users
+
+Offer a guided first setup for people who just need a working KB. The skill finds out on its own whatever it can, asks
+only what is essential with recommended defaults, installs and configures graphify and hands over a workspace ready to
+use with `/kb`. The user does not need to understand graphify, ontologies, RDF or SPARQL.
+
+- **Discovery before any question:** the skill inspects the folder, versioning, policies and tools without opening
+  document contents (`references/discovery.md`).
+- **Short interview:** rounds of up to 4 questions, with the recommended option first (`references/interview.md`).
+- **Automatic graphify:** install from the fork and build the graph, with a safe scope by default (code + `docs/` +
+  `wiki/`; `raw/` only with per-document authorization).
+- **Empty workspace:** the method is explained, example notes are created and the first note is guided
+  (`references/zettelkasten.md`).
+- **Daily use:** only `/kb <question>` and `/kb update`.
+
+Current limit: the ontology, mapping and rule checkpoints are still presented in technical terms. Accepting the
+recommended proposal works, but a plain-language presentation is the next improvement.
+
+## Prerequisites
+
+- [`uv`](https://docs.astral.sh/uv/) (required; it also provides the Python the engine runs on)
 - Python ≥ 3.10
 - Claude Code
 - git
-- Opcional: OneDrive/Teams, para compartilhar o workspace com o time (`references/onedrive-teams-sync.md`)
+- Optional: OneDrive/Teams, to share the workspace with the team (`references/onedrive-teams-sync.md`)
 
-## Instalação
+## Installation
 
-Os comandos usam `REPO` como o caminho do clone. Ajuste a variável se clonar em outro lugar.
+The commands use `REPO` for the clone path. Change the variable if you clone somewhere else.
 
-1. **Clonar o fork**
+1. **Clone the fork**
 
    ```bash
    REPO=~/workspaces/github/graphify-kb
    git clone git@github.com:wagnerpinheiro/graphify-kb.git "$REPO"
    ```
 
-2. **Instalar o graphify do fork** como uv tool editável (um `git pull` no fork atualiza o graphify junto) e a skill
-   global `/graphify`:
+2. **Install graphify from the fork** as an editable uv tool (a `git pull` in the fork updates graphify too), plus the
+   global `/graphify` skill:
 
    ```bash
    uv tool install --force -e "$REPO"
    graphify install --platform claude
    ```
 
-   `--force` substitui um `graphifyy` que já tenha sido instalado do PyPI.
+   `--force` replaces a `graphifyy` previously installed from PyPI.
 
-   **Fallback sem clone** (para quem só precisa do graphify): instale direto do GitHub. Troque `@v8` por um commit ou
-   tag para fixar a versão.
+   **Fallback without a clone** (for people who only need graphify): install straight from GitHub. Replace `@v8` with
+   a commit or tag to pin the version.
 
    ```bash
    uv tool install --force "git+https://github.com/wagnerpinheiro/graphify-kb@v8"
    graphify install --platform claude
    ```
 
-   Para rodar um comando avulso sem instalar: `uvx --from "git+https://github.com/wagnerpinheiro/graphify-kb@v8" graphify --version`.
-   Isso não substitui a instalação: a skill `/graphify` procura o uv tool `graphifyy` e, se ele não existir, instala a
-   versão do PyPI, que não é a deste fork.
+   To run a one-off command without installing: `uvx --from "git+https://github.com/wagnerpinheiro/graphify-kb@v8" graphify --version`.
+   This does not replace the install: the `/graphify` skill looks for the `graphifyy` uv tool and, if it is missing,
+   installs the PyPI release, which is not this fork's version.
 
-3. **Ligar a skill** por symlink. Se já existir uma cópia local em `~/.claude/skills/kb-setup`, mova-a para **fora**
-   de `~/.claude/skills/` antes, senão o Claude Code carrega duas skills `kb-setup`:
+3. **Link the skill** with a symlink. If a local copy already exists at `~/.claude/skills/kb-setup`, move it
+   **outside** `~/.claude/skills/` first, otherwise Claude Code loads two `kb-setup` skills:
 
    ```bash
    mkdir -p ~/.claude/skills
@@ -73,7 +133,7 @@ Os comandos usam `REPO` como o caminho do clone. Ajuste a variável se clonar em
    ln -s "$REPO/kb-setup" ~/.claude/skills/kb-setup
    ```
 
-4. **Verificar**
+4. **Verify**
 
    ```bash
    graphify --version                                   # graphify 0.9.76
@@ -81,145 +141,147 @@ Os comandos usam `REPO` como o caminho do clone. Ajuste a variável se clonar em
    uv run ~/.claude/skills/kb-setup/scripts/kb.py --help
    ```
 
-   Depois abra uma **nova** sessão do Claude Code e confira que a skill `kb-setup` aparece na lista de skills
-   (por exemplo, digitando `/kb-setup`).
+   Then open a **new** Claude Code session and check that the `kb-setup` skill shows up in the skill list (for
+   example, by typing `/kb-setup`).
 
-## Execução inicial em um workspace novo
+## First run in a new workspace
 
-1. **Criar ou abrir a pasta do workspace e iniciar o Claude Code nela.** Os documentos podem já estar lá ou chegar
-   depois.
+1. **Create or open the workspace folder and start Claude Code in it.** Documents can already be there or arrive
+   later.
 
    ```bash
-   mkdir -p ~/workspaces/minha-kb && cd ~/workspaces/minha-kb
+   mkdir -p ~/workspaces/my-kb && cd ~/workspaces/my-kb
    claude
    ```
 
-2. **Disparar a skill** com `/kb-setup init` ou com um pedido em linguagem natural, por exemplo
-   "set up a KB for this folder" ou "monte uma base de conhecimento para esta pasta".
+2. **Trigger the skill** with `/kb-setup init` or a natural-language request such as "set up a KB for this folder".
 
-3. **O que acontece em cada fase.** Os itens marcados com ✋ são checkpoints em que você aprova.
-   1. **Discovery:** só comandos de leitura. A skill olha a pasta (nomes, tamanhos, formatos, duplicatas), git ou
-      OneDrive, as políticas gerenciadas, `uv`/Python e o graphify: versão esperada e origem no fork. Se faltar
-      graphify ou a versão divergir, ela avisa e instala ou atualiza antes de seguir. O conteúdo dos documentos não é
-      aberto nessa fase.
-   2. ✋ **Entrevista:** rodadas de até 4 perguntas, com o padrão recomendado em primeiro: propósito e preset, idioma,
-      versionamento, confidencialidade (o que o Claude pode ler por inteiro), precedência de versões, período de
-      revisão de notas, escopo do graphify (código + `docs/` + `wiki/`, e quais documentos de `raw/` liberar) e task
-      skills.
-   3. **Scaffold Zettelkasten:** `kb.py scaffold` cria `raw/ wiki/ kb/ docs/`, `kb/config.yaml` e o bloco do
-      `.gitignore`. Em seguida a skill gera `README.md`, `CLAUDE.md`, `.claude/skills/kb/SKILL.md` e `kb/SETUP.md`. Num
-      workspace vazio, ela cria notas de exemplo e guia a primeira nota permanente.
-   4. ✋ **Ontologia e preset** (se houver documentos): a skill propõe um preset de `presets/` (`rfi-proposal`,
-      `erp-rollout-program`) ou só o core, e monta ontologia de domínio, shapes, mapeamentos de planilhas, regras de
-      tópicos/fatos e queries salvas. Você aprova antes do build final.
-   5. **`KB update`:** unzip, conversão PDF/DOCX/XLSX → Markdown com marcadores de página, extração determinística,
-      descrição de imagens em subagentes, validação SHACL e wiki gerada.
-   6. **Build do graphify:** escreve `.graphifyignore` (raiz) e `raw/.graphifyignore`, roda `graphify update .`
-      (estrutural, sem LLM) e, se houver conteúdo em `docs/`, `wiki/` ou documentos autorizados, `/graphify .` num
-      subagente.
-   7. ✋ **Task skills:** a skill propõe de 2 a 4 (matriz de conformidade, RACI, seção de proposta etc.) e só gera as
-      que você aprovar.
-   8. **Fechamento:** checklist de prontidão, decisões e autorizações registradas em `kb/SETUP.md`, resumo e
-      sugestões. Ela também oferece rodar um `eval` de baseline.
+3. **What happens in each phase.** Items marked ✋ are checkpoints where you approve.
+   1. **Discovery:** read-only commands. The skill inspects the folder (names, sizes, formats, duplicates), git or
+      OneDrive, managed policies, `uv`/Python and graphify: expected version and fork origin. If graphify is missing
+      or the version differs, it tells you and installs or upgrades it before going on. Document contents are not
+      opened in this phase.
+   2. ✋ **Interview:** rounds of up to 4 questions, recommended default first: purpose and preset, language,
+      versioning, confidentiality (what Claude may read in full), version precedence, note review period, graphify
+      scope (code + `docs/` + `wiki/`, and which `raw/` documents to allow) and task skills.
+   3. **Zettelkasten scaffold:** `kb.py scaffold` creates `raw/ wiki/ kb/ docs/`, `kb/config.yaml` and the
+      `.gitignore` block. The skill then writes `README.md`, `CLAUDE.md`, `.claude/skills/kb/SKILL.md` and
+      `kb/SETUP.md`. In an empty workspace it creates example notes and guides you through the first permanent note.
+   4. ✋ **Ontology and preset** (when there are documents): the skill proposes a preset from `presets/`
+      (`rfi-proposal`, `erp-rollout-program`) or the core only, and drafts the domain ontology, shapes, spreadsheet
+      mappings, topic/fact rules and saved queries. You approve before the final build.
+   5. **`KB update`:** unzip, PDF/DOCX/XLSX → Markdown conversion with page markers, deterministic extraction, image
+      descriptions in subagents, SHACL validation and the generated wiki.
+   6. **graphify build:** writes the root `.graphifyignore` and `raw/.graphifyignore`, runs `graphify update .`
+      (structural, no LLM) and, when `docs/`, `wiki/` or authorized documents hold content, runs `/graphify .` in a
+      subagent.
+   7. ✋ **Task skills:** the skill proposes 2 to 4 (compliance matrix, RACI, proposal section, etc.) and generates
+      only the ones you approve.
+   8. **Close:** readiness checklist, decisions and authorizations recorded in `kb/SETUP.md`, a summary and
+      suggestions. It also offers a baseline `eval`.
 
-4. **Resultado esperado**
+4. **Expected result**
 
    ```
-   minha-kb/
-   ├── raw/                     fontes oficiais (+ .md convertidos ao lado dos binários) e raw/.graphifyignore
-   ├── wiki/                    notas do time (fleeting / literature / permanent)
-   ├── docs/                    entregáveis (nunca indexados)
+   my-kb/
+   ├── raw/                     official sources (+ converted .md beside the binaries) and raw/.graphifyignore
+   ├── wiki/                    team notes (fleeting / literature / permanent)
+   ├── docs/                    deliverables (never indexed)
    ├── kb/
-   │   ├── config.yaml          engine_version, ontologia, fontes, graphify.version/source/scope
-   │   ├── SETUP.md             decisões, autorizações, versão e origem do graphify
-   │   ├── IMPROVEMENTS.md      backlog de melhorias
+   │   ├── config.yaml          engine_version, ontology, sources, graphify.version/source/scope
+   │   ├── SETUP.md             decisions, authorizations, graphify version and source
+   │   ├── IMPROVEMENTS.md      improvement backlog
    │   └── ontology/ mappings/ queries/ evals/ wiki/
-   ├── .claude/skills/kb/       skill /kb do workspace (+ task skills aprovadas)
-   ├── CLAUDE.md                regras da KB e de coexistência com o graphify
-   ├── README.md                método do workspace
-   ├── .graphifyignore          exclui kb/ e .claude/ do graphify
-   ├── .gitignore               bloco kb-setup (binários, kb/.lock, graphify-out/)
-   └── graphify-out/            graph.json, GRAPH_REPORT.md, graph.html (fora do git)
+   ├── .claude/skills/kb/       the workspace /kb skill (+ approved task skills)
+   ├── CLAUDE.md                KB rules and coexistence rules with graphify
+   ├── README.md                the workspace method
+   ├── .graphifyignore          excludes kb/ and .claude/ from graphify
+   ├── .gitignore               kb-setup block (binaries, kb/.lock, graphify-out/)
+   └── graphify-out/            graph.json, GRAPH_REPORT.md, graph.html (kept out of git)
    ```
 
-5. **Primeiros usos**
-   - Perguntas sobre os documentos e as notas: `/kb <pergunta>`. As respostas vêm com citação (`arquivo, p.N` ou
-     `arquivo, aba X, linha N`) e aplicam a precedência entre fontes.
-   - Novos documentos: coloque-os em `raw/` e rode `/kb update`. Só o que mudou é processado, e o graphify é
-     atualizado junto.
-   - Liberar um documento de `raw/` para o graphify: registre a autorização em `kb/SETUP.md`, tire a linha dele de
-     `raw/.graphifyignore` e rode `/kb update` (ou `/kb-setup graphify`).
-   - Exploração (temas, comunidades, caminhos entre conceitos) ou código: `/graphify query "..."`.
+5. **First uses**
+   - Questions about the documents and notes: `/kb <question>`. Answers cite their source (`file, p.N` or
+     `file, sheet X, row N`) and apply source precedence.
+   - New documents: put them in `raw/` and run `/kb update`. Only what changed is processed, and graphify is updated
+     too.
+   - Allowing a `raw/` document into graphify: record the authorization in `kb/SETUP.md`, remove its line from
+     `raw/.graphifyignore` and run `/kb update` (or `/kb-setup graphify`).
+   - Exploration (themes, communities, paths between concepts) or code: `/graphify query "..."`.
 
-## Outros modos
+## Other modes
 
-| Modo | Para quê | Referência |
+| Mode | Purpose | Reference |
 |---|---|---|
-| `adopt` | migrar uma KB existente (layout v1 ou engine local) | [`references/migration.md`](references/migration.md) |
-| `update` | atualização incremental da KB e do graphify depois de mudanças em `raw/` ou `wiki/` | [`references/improvements.md`](references/improvements.md) |
-| `upgrade` | o engine ou o graphify do fork mudou de versão: changelog, migração e rebuild | [`references/migration.md`](references/migration.md) |
-| `graphify` | reinstalar, conferir versão, mudar escopo ou reconstruir o graphify | [`references/graphify.md`](references/graphify.md) |
-| `eval` | tokens, tempo e qualidade: sem KB × só graphify × KB + graphify | [`references/evals.md`](references/evals.md) |
-| `status` | saúde do engine, da versão, das políticas e do graphify | [`SKILL.md`](SKILL.md) |
-| `review` | analisar o uso e aplicar melhorias aprovadas do backlog | [`references/improvements.md`](references/improvements.md) |
-| `preset` | extrair um preset genérico de um workspace | [`references/presets.md`](references/presets.md) |
+| `adopt` | migrate an existing KB (v1 layout or local engine) | [`references/migration.md`](references/migration.md) |
+| `update` | incremental update of the KB and graphify after changes in `raw/` or `wiki/` | [`references/improvements.md`](references/improvements.md) |
+| `upgrade` | the engine or the fork's graphify changed version: changelog, migration and rebuild | [`references/migration.md`](references/migration.md) |
+| `graphify` | reinstall, check the version, change the scope or rebuild graphify | [`references/graphify.md`](references/graphify.md) |
+| `eval` | tokens, time and quality: no KB × graphify only × KB + graphify | [`references/evals.md`](references/evals.md) |
+| `status` | health of the engine, versions, policies and graphify | [`SKILL.md`](SKILL.md) |
+| `review` | analyze usage and apply approved improvements from the backlog | [`references/improvements.md`](references/improvements.md) |
+| `preset` | extract a generic preset from a workspace | [`references/presets.md`](references/presets.md) |
 
-## Atualizar a skill
+## Updating the skill
 
 ```bash
 git -C "$REPO" pull
 ```
 
-O symlink já aponta para a versão nova, e o graphify editável também é atualizado. Se a versão do graphify mudou,
-rode `graphify install --platform claude` para atualizar a skill `/graphify`. Depois, em cada workspace, rode
-`/kb-setup upgrade`: ele compara `engine_version` e `graphify.version` em `kb/config.yaml`, mostra o changelog e
-reconstrói o que for preciso, sempre com confirmação.
+The symlink already points to the new version, and the editable graphify is updated as well. If the graphify version
+changed, run `graphify install --platform claude` to refresh the `/graphify` skill. Then run `/kb-setup upgrade` in
+each workspace: it compares `engine_version` and `graphify.version` in `kb/config.yaml`, shows the changelog and
+rebuilds what is needed, always with confirmation.
 
-## Confidencialidade (resumo)
+## Confidentiality (summary)
 
-- Leitura de conteúdo de documentos (várias páginas, Grep em `raw/`, imagens, extração, graphify) só em
-  **subagentes**, que devolvem resultados compactos com citação. Texto de cliente não entra no contexto principal.
-- Leitura integral por LLM (extração de prosa, graphify sobre `raw/`, baseline de eval) só com **autorização por
-  documento**, registrada em `kb/SETUP.md`. Para o graphify, essa autorização se reflete em `raw/.graphifyignore`.
-- **Nunca** com `GEMINI_API_KEY`/`GOOGLE_API_KEY` definidas: com elas, o graphify envia conteúdo ao Google.
-  Também ficam proibidos `graphify add`, `graphify extract` com backend externo, `--mcp`, `--neo4j`, `--watch`,
-  `graphify hook install` e `graphify claude install` (este cria um hook).
-- `graphify-out/` (raiz e qualquer `*/graphify-out/` de cache) fica fora do git e fora da KB.
+- Reading document content (multiple pages, Grep in `raw/`, images, extraction, graphify) happens only in
+  **subagents**, which return compact results with citations. Client text stays out of the main context.
+- Full reading by an LLM (prose extraction, graphify over `raw/`, eval baseline) requires **per-document
+  authorization**, recorded in `kb/SETUP.md`. For graphify, the authorization is reflected in `raw/.graphifyignore`.
+- **Never** run with `GEMINI_API_KEY`/`GOOGLE_API_KEY` set: with them, graphify sends content to Google. Also
+  forbidden: `graphify add`, `graphify extract` with an external backend, `--mcp`, `--neo4j`, `--watch`,
+  `graphify hook install` and `graphify claude install` (it creates a hook).
+- `graphify-out/` (at the root and any `*/graphify-out/` cache) stays out of git and out of the KB.
 
 ## Troubleshooting
 
-- **Faltam wheels para o Python padrão** (lição L1): uma dependência pode não ter wheel para o Python mais novo.
-  O engine fixa as dependências por PEP 723 + `kb.py.lock`; se o `uv run` falhar ao instalar, teste com
-  `uv run --python 3.12 ~/.claude/skills/kb-setup/scripts/kb.py --version` e reporte a dependência.
-- **O auto mode bloqueia `uvx ... python -c`** (código inline): rode um comando simples por chamada. Para descobrir
-  a origem do graphify, leia `$(uv tool dir)/graphifyy/uv-receipt.toml` em vez de rodar Python inline, ou aprove o
-  comando manualmente.
-- **A versão do graphify diverge da registrada em `kb/SETUP.md` / `kb/config.yaml`:** confira `graphify --version`
-  e a origem em `uv-receipt.toml`. Se ele veio do PyPI, reinstale do fork (`uv tool install --force -e "$REPO"`).
-  Se o fork avançou de versão, rode `/kb-setup upgrade` no workspace antes de reconstruir o grafo.
-- **Cópias `SKILL.md.bak` em `~/.claude/skills/graphify`:** qualquer comando do graphify atualiza cópias antigas da
-  skill global e guarda a anterior como `.bak`. Para desligar, use `GRAPHIFY_NO_AUTO_REFRESH=1`.
+- **No wheels for the default Python** (lesson L1): a dependency may have no wheel for the newest Python. The engine
+  pins its dependencies through PEP 723 + `kb.py.lock`; if `uv run` fails to install, try
+  `uv run --python 3.12 ~/.claude/skills/kb-setup/scripts/kb.py --version` and report the dependency.
+- **Auto mode blocks `uvx ... python -c`** (inline code): run one simple command per call. To find where graphify was
+  installed from, read `$(uv tool dir)/graphifyy/uv-receipt.toml` instead of running inline Python, or approve the
+  command manually.
+- **The graphify version differs from the one recorded in `kb/SETUP.md` / `kb/config.yaml`:** check
+  `graphify --version` and the source in `uv-receipt.toml`. If it came from PyPI, reinstall from the fork
+  (`uv tool install --force -e "$REPO"`). If the fork moved to a new version, run `/kb-setup upgrade` in the workspace
+  before rebuilding the graph.
+- **`SKILL.md.bak` copies in `~/.claude/skills/graphify`:** any graphify command refreshes outdated copies of its global
+  skill and keeps the previous one as `.bak`. Set `GRAPHIFY_NO_AUTO_REFRESH=1` to turn this off.
 
-## Desenvolvimento da skill
+## Developing the skill
 
 ```
 kb-setup/
-├── SKILL.md            roteador de comandos e princípios (o que o Claude lê)
-├── README.md           este arquivo (o Claude ignora)
+├── SKILL.md            command router and principles (what Claude reads)
+├── README.md           this file (ignored by Claude)
+├── README.pt-BR.md     Portuguese version of this file (ignored by Claude)
 ├── scripts/            kb.py (engine) + kb.py.lock, eval_report.py, core_renames.py
-├── assets/core/        ontologia core kb: e shapes SHACL
-├── assets/queries/     queries SPARQL salvas do core
-├── assets/templates/   CLAUDE.md, SETUP.md, config.yaml, README.md, skill /kb, notas, prompts, graphifyignore
-├── presets/            rfi-proposal, erp-rollout-program (ontologia, shapes, mapeamentos, queries, task skills)
-├── references/         passo a passo de cada modo (discovery, interview, graphify, migration, evals, lessons…)
-└── evals/evals.json    casos de teste da própria skill
+├── assets/core/        kb: core ontology and SHACL shapes
+├── assets/queries/     saved core SPARQL queries
+├── assets/templates/   CLAUDE.md, SETUP.md, config.yaml, README.md, /kb skill, notes, prompts, graphifyignore
+├── presets/            rfi-proposal, erp-rollout-program (ontology, shapes, mappings, queries, task skills)
+├── references/         step-by-step guide for each mode (discovery, interview, graphify, migration, evals, lessons…)
+└── evals/evals.json    test cases for the skill itself
 ```
 
-- **Evals da skill:** `evals/evals.json` traz os prompts, a saída esperada e as assertions de cada caso. Rode com a
-  skill `skill-creator`, que executa os casos em subagentes e avalia as assertions. Os corpora usados nos casos
-  (`corpus-rfp`, `fixture-initialized`) não ficam neste repositório.
-- **Relatório do modo `eval`:** `scripts/eval_report.py` agrega `runs.jsonl`, `grades.json` e os JSONs de volume:
-  `uv run ~/.claude/skills/kb-setup/scripts/eval_report.py --dir <pasta do eval> --out kb/evals/<data>/report.md`.
-- `kb-setup/` fica **fora do pacote `graphifyy`**: não entra no wheel nem nos `testpaths` do pytest, e o
-  `tools/skillgen` não a gera. Mudanças aqui não afetam o graphify publicado. Se um dia for enviar PR ao upstream,
-  crie a branch a partir do upstream, sem esta pasta.
+- **Skill evals:** `evals/evals.json` holds the prompt, expected output and assertions for each case. Run them with
+  the `skill-creator` skill, which executes the cases in subagents and grades the assertions. The corpora the cases
+  use (`corpus-rfp`, `fixture-initialized`) are not in this repository.
+- **`eval` mode report:** `scripts/eval_report.py` aggregates `runs.jsonl`, `grades.json` and the volume JSONs:
+  `uv run ~/.claude/skills/kb-setup/scripts/eval_report.py --dir <eval folder> --out kb/evals/<date>/report.md`.
+- `kb-setup/` stays **outside the `graphifyy` package**: it is not in the wheel or in pytest's `testpaths`, and
+  `tools/skillgen` does not generate it. Changes here do not affect the published graphify. If you ever open a PR
+  upstream, branch from upstream, without this folder.
+
+When you change this README, update [`README.pt-BR.md`](README.pt-BR.md) as well.
