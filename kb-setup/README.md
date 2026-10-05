@@ -89,9 +89,24 @@ recommended proposal works, but a plain-language presentation is the next improv
 - Python ≥ 3.10
 - Claude Code
 - git
+- Node.js, only to install with `npx skills`
 - Optional: OneDrive/Teams, to share the workspace with the team (`references/onedrive-teams-sync.md`)
 
 ## Installation
+
+### Quick install with `npx skills`
+
+Install only the meta skill, globally for Claude Code:
+
+```bash
+npx skills add wagnerpinheiro/graphify-kb --skill kb-setup -g -a claude-code
+```
+
+The skill lands in `~/.claude/skills/kb-setup`. graphify does not need to be installed beforehand: on the first
+`/kb-setup init`, discovery detects that it is missing and installs it from the fork. To install it right away, use the
+command in step 2 below (fallback without a clone). Check with step 4.
+
+### Install from a clone
 
 The commands use `REPO` for the clone path. Change the variable if you clone somewhere else.
 
@@ -232,6 +247,9 @@ The symlink already points to the new version, and the editable graphify is upda
 changed, run `graphify install --platform claude` to refresh the `/graphify` skill. Then run `/kb-setup upgrade` in
 each workspace: it compares `engine_version` and `graphify.version` in `kb/config.yaml`, shows the changelog and
 rebuilds what is needed, always with confirmation.
+
+If you installed with `npx skills`, update with `npx skills update kb-setup -g` and then run `/kb-setup upgrade` in each
+workspace the same way.
 
 ## Confidentiality (summary)
 
