@@ -1,6 +1,8 @@
-# Knowledge base configuration (read by the central engine ~/.claude/skills/kb-setup/scripts/kb.py).
+# Knowledge base configuration (read by the central engine ~/.claude/skills/kb-setup/scripts/kb.py,
+# or by the workspace copy scripts/kb-engine/kb.py when there is one).
 # Paths are always relative to the workspace root. Managed by /kb-setup; edit with care.
 engine_version: "{{engine_version}}"
+kb_setup_version: "{{kb_setup_version}}"   # kb-setup that generated README, CLAUDE.md and the /kb skill
 title: "{{title}}"
 language: {{language}}            # language of the workspace content (en | pt | es ...); answers follow the asker
 versioning: {{versioning}}        # git | onedrive | both

@@ -74,7 +74,7 @@ Rendering is plain string replacement of `{{NAME}}`. Mapping templates use `"{{{
 | `{{PREFIX}}`, `{{NAMESPACE}}` | ontology, shapes, mappings, queries, skills | interview (prefix). The namespace comes from `kb/config.yaml` `ontology.namespace` written by `KB scaffold` |
 | `{{CLIENT}}`, `{{PROGRAM}}` | ontology labels/comments, skill descriptions | interview Q1 |
 | `{{PROJECT}}` | task-skill names | interview Q2 |
-| `{{DATE}}`, `{{ENGINE_VERSION}}` | ontology, skill headers | today; `KB --version` |
+| `{{DATE}}`, `{{ENGINE_VERSION}}`, `{{KB_SETUP_VERSION}}` | ontology, skill headers | today; `KB --version` (engine and kb-setup versions) |
 | `{{SOURCE_COMPLIANCE_MATRIX}}`, `{{SOURCE_RACI_MATRIX}}`, `{{SOURCE_TRANSITION_CHECKLIST}}` | mappings | discovery: workspace-relative path of the `.xlsx` |
 | `{{SHEET_*}}`, `{{HEADER_ROW_*}}` | mappings | `KB outline <file>`: sheet names and header rows |
 | `{{COL_*}}` | mappings | `KB outline <file>`: exact header text (or `@<Letter>` for header-less columns) |

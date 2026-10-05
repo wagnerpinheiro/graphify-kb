@@ -4,7 +4,7 @@ Goal: answer as much as possible from the machine, so the interview only asks wh
 
 ## 1. Workspace
 - `pwd`, `ls -la`, and a recursive listing limited to names/sizes (e.g. `find . -maxdepth 4 -type f -not -path './.git/*' | head -200`, `du -sh raw wiki docs 2>/dev/null`).
-- Existing structure: `raw/`, `wiki/`, `kb/`, `docs/`, `kb/config.yaml` (→ adopt if present), `scripts/kb/kb.py` (v1 local engine → adopt), `.claude/skills/`, `CLAUDE.md`, `README.md` (read README/CLAUDE.md fully: they often contain the user's KB rules — precedence, header, versioning).
+- Existing structure: `raw/`, `wiki/`, `kb/`, `docs/`, `kb/config.yaml` (→ adopt if present), `scripts/kb/kb.py` (v1 local engine → adopt), `scripts/kb-engine/ENGINE.json` (a v2 engine copy made by `KB vendor`, not a v1 marker; read its `kb_setup_version` and run `KB vendor --check`), `.claude/skills/`, `CLAUDE.md`, `README.md` (read README/CLAUDE.md fully: they often contain the user's KB rules — precedence, header, versioning).
 - Formats and volume: count by extension (pdf, docx, xlsx, pptx, zip, md, images); total MB; language guess from file names. ZIPs will be unzipped into sibling folders.
 - Duplicates: `shasum -a 256` over binaries; byte-identical files are common (downloads saved twice under different names). They must be flagged and prose-extracted only once.
 - Version hints in names (`v1.1.0`, `-v4`, `6ª Versão`, `rev 3`) and families of versions.
@@ -25,7 +25,7 @@ Never modify settings; if something is blocked, explain and ask.
 
 ## 4. Tools
 - `uv --version` (required), `python3 --version` (the engine pins its own via uv), `git --version`.
-- Engine health: `uv run ~/.claude/skills/kb-setup/scripts/kb.py --version` (first run creates the uv cache environment; nothing is written to the workspace).
+- Engine health: `uv run ~/.claude/skills/kb-setup/scripts/kb.py --version` → `kb.py engine X · kb-setup Y (central)` (first run creates the uv cache environment; nothing is written to the workspace). Record the installed kb-setup version (`VERSION`) and, in an existing workspace, compare it with `kb_setup_version` in `kb/config.yaml`. `KB check-update` already ran before the mode started.
 - graphify (required; `references/graphify.md`). Check, one command per call:
   - `graphify --version` → must match the version this skill expects (0.9.76, the fork's `pyproject.toml`) and, in an existing workspace, `graphify.version` in `kb/config.yaml`;
   - `uv tool dir`, then read `<that dir>/graphifyy/uv-receipt.toml` → the `graphifyy` requirement must come from the fork (`editable = "<checkout path>"` or `git = "https://github.com/wagnerpinheiro/graphify-kb…"`), not a bare PyPI name;

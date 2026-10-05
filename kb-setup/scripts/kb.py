@@ -20,6 +20,8 @@ RDF/OWL ontology (Turtle + SHACL + SPARQL, pyoxigraph in memory). Central engine
 Usage (from anywhere inside a workspace):  uv run ~/.claude/skills/kb-setup/scripts/kb.py <command> [args]
 The workspace root is the nearest ancestor of the current directory containing kb/config.yaml
 (override with --root or KB_ROOT). `scaffold` creates kb/config.yaml in the current directory.
+`vendor` copies the engine into the workspace (scripts/kb-engine/) so people without kb-setup can consult it:
+uv run scripts/kb-engine/kb.py <command>. The central engine takes precedence; the copy is the fallback.
 
 Principles:
 - paths always relative to the workspace root (portable between git and OneDrive);
@@ -55,13 +57,28 @@ import yaml
 
 warnings.filterwarnings("ignore")
 
-ENGINE_VERSION = "2.0.0"          # semver of the central engine; workspaces record it in kb/config.yaml
+ENGINE_VERSION = "2.1.0"          # semver of the engine; workspaces record it in kb/config.yaml
 EXTRACTOR_VERSION = "10"           # bump when extract-det output changes
 CONVERTER_VERSION = "5"           # bump when convert output changes
 ENGINE_DIR = Path(__file__).resolve().parent
 SKILL_DIR = ENGINE_DIR.parent
-CORE_ONTOLOGY = SKILL_DIR / "assets" / "core" / "kb-core.ttl"
-CORE_SHAPES = SKILL_DIR / "assets" / "core" / "kb-core-shapes.ttl"
+IS_COPY = (ENGINE_DIR / "ENGINE.json").exists()   # running from a workspace copy (scripts/kb-engine/)
+CENTRAL_CMD = "uv run ~/.claude/skills/kb-setup/scripts/kb.py"
+INSTALL_CMD = "npx skills add wagnerpinheiro/graphify-kb --skill kb-setup -g -a claude-code"
+
+
+def _bundle(rel_path: str) -> Path:
+    """File shipped with the engine: beside kb.py in a workspace copy, else in the skill folder."""
+    p = ENGINE_DIR / rel_path
+    return p if p.exists() else SKILL_DIR / rel_path
+
+
+CORE_ONTOLOGY = _bundle("assets/core/kb-core.ttl")
+CORE_SHAPES = _bundle("assets/core/kb-core-shapes.ttl")
+PROMPTS = _bundle("assets/templates/prompts.md")
+TEMPLATES = SKILL_DIR / "assets" / "templates"   # skill only: a workspace copy cannot scaffold
+_VERSION_FILE = _bundle("VERSION")
+KB_SETUP_VERSION = _VERSION_FILE.read_text(encoding="utf-8").strip() if _VERSION_FILE.exists() else "unknown"
 
 
 def _find_root() -> Path:
@@ -79,8 +96,11 @@ def _find_root() -> Path:
     return cwd
 
 
-KB_CMD = "uv run ~/.claude/skills/kb-setup/scripts/kb.py"
 ROOT = _find_root()
+try:  # how to call this engine in messages: a workspace copy by its relative path, else the central one
+    KB_CMD = f"uv run {(ENGINE_DIR / 'kb.py').relative_to(ROOT).as_posix()}"
+except ValueError:
+    KB_CMD = CENTRAL_CMD
 KB = ROOT / "kb"
 MANIFEST_DIR = KB / "manifest"
 TRIPLES_DIR = KB / "triples"
@@ -211,7 +231,7 @@ def parse_duration(s: str | int | None, default_days: int = 14) -> dt.timedelta:
     return {"h": dt.timedelta(hours=n), "d": dt.timedelta(days=n), "w": dt.timedelta(weeks=n), "m": dt.timedelta(days=30 * n)}[u]
 
 
-CORE_QUERIES = SKILL_DIR / "assets" / "queries"
+CORE_QUERIES = _bundle("assets/queries")
 
 
 def find_query(name: str) -> Path | None:
@@ -2220,7 +2240,13 @@ def cmd_status(args, cfg):
     for s in sources:
         st = source_state(s, cfg, anexos)
         rows.append([st["fonte"], st["tipo"], st["convert"], st["imagens"], st["det"], st["llm"]])
-    print(f"Workspace: {ROOT.name}  |  mode: {'git' if is_git() else 'no git (OneDrive)'}  |  sources: {len(sources)}\n")
+    print(f"Workspace: {ROOT.name}  |  mode: {'git' if is_git() else 'no git (OneDrive)'}  |  sources: {len(sources)}")
+    print(f"Engine: {'workspace copy' if IS_COPY else 'central'} ({KB_CMD})  |  engine {ENGINE_VERSION}  |  kb-setup {KB_SETUP_VERSION}"
+          f"  |  workspace files: engine {cfg.get('engine_version') or '?'}, kb-setup {cfg.get('kb_setup_version') or '?'}")
+    vst, vdetail = vendor_state()
+    if vst != "absent":
+        print(f"Engine copy: {rel(VENDOR_DIR)}/ {vst}" + (f" ({vdetail})" if vdetail else ""))
+    print()
     print(fmt_table(["source", "kind", "convert", "images", "det", "llm"], rows, 70))
     alerts = []
     lk = read_lock()
@@ -3133,7 +3159,7 @@ def cmd_wiki(args, cfg):
 # ----------------------------------------------------------------------------- lifecycle: scaffold / migrate / volume
 
 WRITE_CMDS = {"log-cost", "convert", "extract-det", "update", "ingest", "lock", "unlock", "unzip", "set-image", "llm-done", "wiki",
-              "new-note", "migrate", "scaffold"}
+              "new-note", "migrate", "scaffold", "vendor"}
 GITIGNORE_BLOCK = """
 # --- kb-setup ---
 .DS_Store
@@ -3163,10 +3189,13 @@ def cmd_scaffold(args, cfg):
     cfg_path = root / "kb" / "config.yaml"
     if cfg_path.exists() and not args.force:
         die(f"{cfg_path} already exists (use adopt/upgrade, or --force)")
-    tpl = (SKILL_DIR / "assets" / "templates" / "config.yaml").read_text(encoding="utf-8")
+    if IS_COPY or not (TEMPLATES / "config.yaml").exists():
+        die(f"scaffold needs the kb-setup templates, and this engine is a workspace copy ({ENGINE_DIR}). "
+            f"Install the kb-setup skill ({INSTALL_CMD}) and run {CENTRAL_CMD} scaffold")
+    tpl = (TEMPLATES / "config.yaml").read_text(encoding="utf-8")
     ws = re.sub(r"[^a-z0-9]+", "-", fold(args.title or root.name)).strip("-")[:40] or "ws"
     prefix = args.prefix or "dom"
-    values = {"engine_version": ENGINE_VERSION, "title": args.title or root.name, "language": args.language,
+    values = {"engine_version": ENGINE_VERSION, "kb_setup_version": KB_SETUP_VERSION, "title": args.title or root.name, "language": args.language,
               "prefix": prefix, "namespace": f"http://kb.local/{ws}/ont#", "instances": f"http://kb.local/{ws}/id/",
               "versioning": args.versioning}
     for k, v in values.items():
@@ -3180,7 +3209,7 @@ def cmd_scaffold(args, cfg):
     created.append("kb/config.yaml")
     imp = root / "kb" / "IMPROVEMENTS.md"
     if not imp.exists():
-        imp.write_text((SKILL_DIR / "assets" / "templates" / "IMPROVEMENTS.md").read_text(encoding="utf-8"), encoding="utf-8")
+        imp.write_text((TEMPLATES / "IMPROVEMENTS.md").read_text(encoding="utf-8"), encoding="utf-8")
         created.append("kb/IMPROVEMENTS.md")
     if args.versioning in ("git", "both"):
         gi = root / ".gitignore"
@@ -3247,7 +3276,7 @@ def _migrate_config_text(text: str, prefix: str, ns: str, id_ns: str, title: str
     body = "\n".join(out) + "\n"
     body = _rename_terms(body, prefix, ns, R.ALL, id_ns)
     head = (f"# Migrated to kb-setup engine {ENGINE_VERSION} on {today().isoformat()} (v1 -> v2).\n"
-            f"engine_version: \"{ENGINE_VERSION}\"\ntitle: \"{title}\"\nlanguage: {language}\n"
+            f"engine_version: \"{ENGINE_VERSION}\"\nkb_setup_version: \"{KB_SETUP_VERSION}\"\ntitle: \"{title}\"\nlanguage: {language}\n"
             f"ontology:\n  prefix: {prefix}\n  namespace: \"{ns}\"\n  instances: \"{id_ns}\"\n\n")
     return head + body
 
@@ -3359,15 +3388,136 @@ def cmd_costs(args, cfg):
                     [[k, c, f"{t:,}", f"{ms_ / 60000:.1f}"] for (k, c), (t, ms_) in sorted(tot.items())]) if tot else "no costs logged")
 
 
-def version_warning(cfg: dict) -> str | None:
+# ----------------------------------------------------------------------------- engine copy / versions
+
+VENDOR_DIR = ROOT / "scripts" / "kb-engine"   # not scripts/kb/: that path marks a v1 workspace for adopt
+UPDATE_URL = "https://raw.githubusercontent.com/wagnerpinheiro/graphify-kb/v8/kb-setup/VERSION"
+CHANGELOG_URL = "https://github.com/wagnerpinheiro/graphify-kb/blob/v8/kb-setup/CHANGELOG.md"
+
+
+def _semver(v: str) -> tuple[int, ...]:
+    return tuple(int(x) for x in re.findall(r"\d+", str(v))[:3])
+
+
+def _vendor_files() -> list[tuple[Path, str]]:
+    """(source, path inside the copy) of every file a workspace copy of the engine needs to consult the KB."""
+    files = [(ENGINE_DIR / n, n) for n in ("kb.py", "kb.py.lock", "core_renames.py")]
+    files.append((_VERSION_FILE, "VERSION"))
+    for sub, pat in (("assets/core", "*.ttl"), ("assets/queries", "*.rq")):
+        files += [(p, f"{sub}/{p.name}") for p in sorted(_bundle(sub).glob(pat))]
+    files.append((PROMPTS, "assets/templates/prompts.md"))
+    return files
+
+
+def vendor_state() -> tuple[str, str]:
+    """State of scripts/kb-engine/: absent | up to date | outdated (vs the running engine) | modified (vs its ENGINE.json)."""
+    meta_p = VENDOR_DIR / "ENGINE.json"
+    if not meta_p.exists():
+        return "absent", ""
+    try:
+        meta = json.loads(meta_p.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return "outdated", "unreadable ENGINE.json"
+    have = meta.get("kb_setup_version") or "?"
+    recorded = meta.get("files") or {}
+    if IS_COPY:  # no central engine to compare with: check the copy against its own record
+        diff = [r for r, h in recorded.items() if not (VENDOR_DIR / r).exists() or sha256_file(VENDOR_DIR / r) != h]
+        if diff:
+            return "modified", f"{len(diff)} file(s) differ from ENGINE.json: {', '.join(sorted(diff)[:5])}"
+        return "up to date", f"kb-setup {have}, engine {meta.get('engine_version')}; integrity check only, run the central engine to compare"
+    want = {r: sha256_file(src) for src, r in _vendor_files() if src.exists()}
+    diff = sorted(r for r in want if not (VENDOR_DIR / r).exists() or sha256_file(VENDOR_DIR / r) != want[r])
+    diff += sorted(r for r in recorded if r not in want)  # files the running engine no longer ships
+    if not diff:
+        return "up to date", f"kb-setup {have}, engine {meta.get('engine_version')}"
+    return "outdated", f"kb-setup {have} → {KB_SETUP_VERSION}; {len(diff)} file(s) differ"
+
+
+def cmd_vendor(args, cfg):
+    """Copy the engine into scripts/kb-engine/ (text files only) so the workspace can be consulted without kb-setup."""
+    if args.check:
+        st, detail = vendor_state()
+        print(f"scripts/kb-engine: {st}" + (f" ({detail})" if detail else ""))
+        return
+    if IS_COPY:
+        die(f"this engine is already a workspace copy; run from the central engine: {CENTRAL_CMD} vendor")
     if not (KB / "config.yaml").exists():
-        return None
+        die(f"no kb/config.yaml in {ROOT}: run vendor from a workspace")
+    if VENDOR_DIR.exists() and any(VENDOR_DIR.iterdir()) and not (VENDOR_DIR / "ENGINE.json").exists():
+        die(f"{rel(VENDOR_DIR)}/ exists and is not an engine copy (no ENGINE.json): move it away first")
+    files = _vendor_files()
+    missing = [str(src) for src, _ in files if not src.exists()]
+    if missing:
+        die("engine files missing: " + ", ".join(missing))
+    with CuratorLock(cfg, "vendor"):
+        tmp = VENDOR_DIR.with_name(".kb-engine.tmp")
+        if tmp.exists():
+            shutil.rmtree(tmp)
+        hashes = {}
+        for src, r in files:
+            dst = tmp / r
+            dst.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(src, dst)
+            hashes[r] = sha256_file(dst)
+        home = str(Path.home())
+        origin = str(ENGINE_DIR)
+        meta = {"engine_version": ENGINE_VERSION, "kb_setup_version": KB_SETUP_VERSION,
+                "source": "~" + origin[len(home):] if origin.startswith(home) else origin,
+                "vendored": now_iso(), "files": hashes}
+        (tmp / "ENGINE.json").write_text(json.dumps(meta, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+        if VENDOR_DIR.exists():
+            shutil.rmtree(VENDOR_DIR)
+        tmp.rename(VENDOR_DIR)
+    notes = []
+    gi = ROOT / ".graphifyignore"
+    if gi.exists() and "scripts/kb-engine" not in gi.read_text(encoding="utf-8"):
+        gi.write_text(gi.read_text(encoding="utf-8").rstrip("\n") + "\nscripts/kb-engine/\n", encoding="utf-8")
+        notes.append(".graphifyignore += scripts/kb-engine/")
+    print(f"vendor: {rel(VENDOR_DIR)}/ ← engine {ENGINE_VERSION} · kb-setup {KB_SETUP_VERSION} ({len(files)} files + ENGINE.json)"
+          + (f"; {'; '.join(notes)}" if notes else ""))
+    print(f"consult without kb-setup: uv run {rel(VENDOR_DIR)}/kb.py status")
+
+
+def cmd_check_update(args, cfg):
+    """Compare the installed kb-setup VERSION with the published one (network, 3 s timeout; never fails)."""
+    if IS_COPY:
+        print("update check skipped: running from a workspace copy (the curator refreshes it with /kb-setup upgrade)")
+        return
+    import urllib.request
+
+    url = os.environ.get("KB_SETUP_UPDATE_URL") or UPDATE_URL
+    try:
+        with urllib.request.urlopen(url, timeout=3) as r:
+            latest = r.read(64).decode("utf-8", "replace").strip()
+        if not re.fullmatch(r"\d+\.\d+\.\d+", latest):
+            raise ValueError(f"unexpected content at {url}")
+    except Exception as e:  # offline, proxy, 404, bad URL: never block the caller
+        print(f"update check skipped: {e}")
+        return
+    if _semver(latest) <= _semver(KB_SETUP_VERSION):
+        print(f"kb-setup {KB_SETUP_VERSION} is up to date (published: {latest})")
+        return
+    repo = SKILL_DIR.parent
+    how = f"git -C {repo} pull" if (repo / ".git").exists() else "npx skills update kb-setup -g"
+    print(f"UPDATE AVAILABLE: kb-setup {latest} (installed {KB_SETUP_VERSION})")
+    print(f"  changelog: {CHANGELOG_URL}")
+    print(f"  update:    {how}")
+    print("  then open a new Claude Code session and run /kb-setup upgrade in each workspace")
+
+
+def version_warnings(cfg: dict) -> list[str]:
+    if not (KB / "config.yaml").exists():
+        return []
     v = str(cfg.get("engine_version") or "")
     if not v:
-        return f"workspace has no engine_version (v1 layout?): run /kb-setup adopt (engine {ENGINE_VERSION})"
+        return [f"workspace has no engine_version (v1 layout?): run /kb-setup adopt (engine {ENGINE_VERSION})"]
+    out = []
     if v.split(".")[:2] != ENGINE_VERSION.split(".")[:2]:
-        return f"workspace built with engine {v}, installed engine is {ENGINE_VERSION}: run /kb-setup upgrade"
-    return None
+        out.append(f"workspace built with engine {v}, installed engine is {ENGINE_VERSION}: run /kb-setup upgrade")
+    sv = str(cfg.get("kb_setup_version") or "")
+    if sv and KB_SETUP_VERSION != "unknown" and _semver(sv)[:2] < _semver(KB_SETUP_VERSION)[:2]:
+        out.append(f"workspace files generated by kb-setup {sv}; installed {KB_SETUP_VERSION}: run /kb-setup upgrade")
+    return out
 
 # ----------------------------------------------------------------------------- main
 
@@ -3376,7 +3526,8 @@ def main():
     ap = argparse.ArgumentParser(prog="kb.py", description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--root", help="workspace root (default: nearest ancestor with kb/config.yaml)")
     ap.add_argument("--read-only", action="store_true", help="consult-only mode: refuse commands that write (also KB_READONLY=1)")
-    ap.add_argument("--version", action="version", version=f"kb.py engine {ENGINE_VERSION}")
+    ap.add_argument("--version", action="version",
+                    version=f"kb.py engine {ENGINE_VERSION} · kb-setup {KB_SETUP_VERSION} ({'workspace copy' if IS_COPY else 'central'})")
     sp = ap.add_subparsers(dest="cmd", required=True)
 
     def add(name, fn, help_):
@@ -3473,16 +3624,19 @@ def main():
     p.add_argument("--note")
     p = add("costs", cmd_costs, "show logged build costs")
     p.add_argument("--json", action="store_true")
+    p = add("vendor", cmd_vendor, "copy the engine into scripts/kb-engine/ for people without kb-setup (--check: compare only)")
+    p.add_argument("--check", action="store_true", help="report absent | up to date | outdated; writes nothing")
+    add("check-update", cmd_check_update, "check whether a newer kb-setup is published (network, 3 s timeout)")
     p = add("volume", cmd_volume, "corpus volume (files, pages, words, MB, estimated tokens) for evals")
     p.add_argument("path", nargs="?")
     p.add_argument("--json", action="store_true")
     args = ap.parse_args()
-    if args.cmd in WRITE_CMDS and (args.read_only or os.environ.get("KB_READONLY") == "1"):
+    if args.cmd in WRITE_CMDS and not getattr(args, "check", False) and (args.read_only or os.environ.get("KB_READONLY") == "1"):
         die(f"read-only mode: '{args.cmd}' writes to the workspace; ask the KB curator to run it")
     cfg = load_config()
-    w = version_warning(cfg)
-    if w and args.cmd not in ("migrate", "scaffold"):
-        print(f"WARNING: {w}", file=sys.stderr)
+    if args.cmd not in ("migrate", "scaffold"):
+        for w in version_warnings(cfg):
+            print(f"WARNING: {w}", file=sys.stderr)
     args.fn(args, cfg)
 
 

@@ -35,7 +35,27 @@ Facts for the graph (one per line): `- Decision: …`, `- Hypothesis: …`, `- A
 - Ask questions in natural language (the `/kb` skill answers citing file/page).
 - `/kb update` after adding/changing files (curator), `/kb status`, `/kb stale`, `/kb new-note "<title>"`.
 - `/kb-setup review` for improvements, `/kb-setup eval` to measure tokens/time/quality, `/kb-setup upgrade` when the engine changes.
-- Requirements: the **kb-setup** skill installed in `~/.claude/skills/kb-setup/` and `uv`.
+
+## Requirements and installation
+<!-- kb-setup: keep the commands as they are; when this workspace has no engine copy, remove every line that mentions scripts/kb-engine -->
+Who needs what: **consulting** (questions, `/kb status`) needs uv and Claude Code; **curating** (`/kb update`, `/kb-setup ...`) also needs the kb-setup skill and graphify. This workspace carries a copy of the engine in `scripts/kb-engine/`, so consulting works without kb-setup.
+
+| Tool | macOS | Linux | Windows |
+|---|---|---|---|
+| [uv](https://docs.astral.sh/uv/) (required) | `brew install uv` or `curl -LsSf https://astral.sh/uv/install.sh \| sh` | `curl -LsSf https://astral.sh/uv/install.sh \| sh` | `winget install --id=astral-sh.uv -e` or `powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 \| iex"` |
+| Python ≥ 3.10 | provided by uv (nothing to install) | provided by uv | provided by uv |
+| Claude Code | CLI or the Code tab of Claude Desktop | CLI | CLI or the Code tab of Claude Desktop |
+| Node.js (only for `npx`) | `brew install node` | your distribution's package manager (e.g. `sudo apt install nodejs npm`) | `winget install OpenJS.NodeJS.LTS` |
+
+1. **kb-setup skill** (required for curators; optional for consultants when `scripts/kb-engine/` exists):
+   `npx skills add wagnerpinheiro/graphify-kb --skill kb-setup -g -a claude-code`, then open a new Claude Code session.
+2. **graphify** (curators): `uv tool install --force "git+https://github.com/wagnerpinheiro/graphify-kb@v8"`, then `graphify install --platform claude`.
+3. **Check:** `uv run scripts/kb-engine/kb.py --version` (workspace copy) or `uv run ~/.claude/skills/kb-setup/scripts/kb.py --version` (kb-setup installed).
+
+Notes:
+- The first run downloads the engine's Python dependencies into the uv cache, outside this folder; nothing is installed in the workspace.
+- Windows (PowerShell): write `$HOME\.claude\skills\kb-setup\...` where these instructions say `~/.claude/skills/kb-setup/...`.
+- OneDrive/Teams: mark this folder (at least `scripts/kb-engine/`) as "Always keep on this device" so the engine is available offline.
 
 ## Versioning
 {{VERSIONING_NOTES}}

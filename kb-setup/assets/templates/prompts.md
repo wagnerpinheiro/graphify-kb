@@ -2,7 +2,7 @@
 
 All subagents: `subagent_type: general-purpose`, self-contained prompt, workspace root given as an absolute path, one simple command per Bash call, a verifiable deliverable (file written + counts).
 
-Note: the harness may refuse the Write tool for *report-like* files created by subagents ("Subagents should return findings as text"). Ask subagents to write data files through the engine or Bash where possible (e.g. `KB set-image`, JSON/TTL outputs) and to **return reports as text** in their final message; the orchestrator saves them. Never ask a subagent to work around a refusal. Replace `KB` by `uv run ~/.claude/skills/kb-setup/scripts/kb.py`.
+Note: the harness may refuse the Write tool for *report-like* files created by subagents ("Subagents should return findings as text"). Ask subagents to write data files through the engine or Bash where possible (e.g. `KB set-image`, JSON/TTL outputs) and to **return reports as text** in their final message; the orchestrator saves them. Never ask a subagent to work around a refusal. Replace `KB` by `uv run ~/.claude/skills/kb-setup/scripts/kb.py`, or by `uv run scripts/kb-engine/kb.py` when only the workspace copy of the engine exists.
 
 ## 1. Image description (batches of ~15 unique images per subagent)
 > You describe images extracted from documents for a local knowledge base. Workspace root: <root>. Batch: `<md>` with assets <list> (relative to the .md folder).

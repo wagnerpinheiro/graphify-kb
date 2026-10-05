@@ -324,7 +324,7 @@ Run these in the workspace, or in a scratchpad copy for the destructive checks. 
 
 | # | Check | Command / method | Expected |
 |---|---|---|---|
-| 1 | Environment and engine version | `$KB --version` then `$KB status` | Runs without creating `.venv`. Engine version matches `config.yaml` |
+| 1 | Environment and versions | `$KB --version` then `$KB status` | Runs without creating `.venv`. Engine and kb-setup versions match `engine_version`/`kb_setup_version` in `config.yaml` |
 | 2 | Managed policies re-read | Read the 3 policy files (L4) | No MCP, hook or settings dependency in the generated skills |
 | 3 | Duplicates and families | `$KB status` | Byte-identical copies are flagged. Families group only versions of the same document |
 | 4 | Conversion sanity | `$KB outline` + spot-check `$KB page-text <md> <n>` against the original | No page-sized frame tables, no `NaN`/`Unnamed`, no truncated `.md` names |
@@ -345,3 +345,4 @@ Run these in the workspace, or in a scratchpad copy for the destructive checks. 
 | 19 | One-call answer | `$KB ask "<known question>"` | Correct answer with file + page/sheet-row citation in 1 call. `NO ANSWER IN KB` for a negative question |
 | 20 | Routing with graphify-out present | Neutral subagent, CLAUDE.md loaded, `graphify-out/` present, asks a source question | Picks `/kb`. `graphify-out/` is ignored by git and by the engine |
 | 21 | graphify from the fork | `graphify --version`, `<uv tool dir>/graphifyy/uv-receipt.toml`, `ls graphify-out/graph.json` | Version equals `graphify.version` in `kb/config.yaml`, installed from the fork (not PyPI). Graph built; no unauthorized raw/ file in the detect list |
+| 22 | Engine copy (when chosen) | `$KB vendor --check`, then `uv run scripts/kb-engine/kb.py --version` and `... ask "<known question>"` | `up to date`; the copy reports `(workspace copy)` and answers like the central engine. `scripts/kb-engine/` is in the root `.graphifyignore` |

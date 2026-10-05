@@ -20,6 +20,7 @@ Claude Code ──► kb-setup skill (~/.claude/skills/kb-setup → <fork>/kb-se
                    │
                    ├─► engine  scripts/kb.py   (PEP 723, run with uv; nothing installed in the workspace)
                    │      └─► workspace/  raw/ wiki/ kb/ docs/  +  /kb skill  +  CLAUDE.md
+                   │                      (+ optional engine copy in scripts/kb-engine/)
                    │
                    └─► graphify (uv tool installed from this fork)
                           └─► workspace/graphify-out/  (exploratory graph; kept out of git)
@@ -152,7 +153,7 @@ The commands use `REPO` for the clone path. Change the variable if you clone som
 
    ```bash
    graphify --version                                   # graphify 0.9.76
-   uv run ~/.claude/skills/kb-setup/scripts/kb.py --version   # kb.py engine 2.0.0
+   uv run ~/.claude/skills/kb-setup/scripts/kb.py --version   # kb.py engine 2.1.0 · kb-setup 2.1.0 (central)
    uv run ~/.claude/skills/kb-setup/scripts/kb.py --help
    ```
 
@@ -177,11 +178,12 @@ The commands use `REPO` for the clone path. Change the variable if you clone som
       or the version differs, it tells you and installs or upgrades it before going on. Document contents are not
       opened in this phase.
    2. ✋ **Interview:** rounds of up to 4 questions, recommended default first: purpose and preset, language,
-      versioning, confidentiality (what Claude may read in full), version precedence, note review period, graphify
+      versioning, engine copy in the workspace, confidentiality (what Claude may read in full), version precedence, note review period, graphify
       scope (code + `docs/` + `wiki/`, and which `raw/` documents to allow) and task skills.
    3. **Zettelkasten scaffold:** `kb.py scaffold` creates `raw/ wiki/ kb/ docs/`, `kb/config.yaml` and the
       `.gitignore` block. The skill then writes `README.md`, `CLAUDE.md`, `.claude/skills/kb/SKILL.md` and
-      `kb/SETUP.md`. In an empty workspace it creates example notes and guides you through the first permanent note.
+      `kb/SETUP.md`. If you chose the engine copy, `kb.py vendor` writes it to `scripts/kb-engine/`. In an empty
+      workspace it creates example notes and guides you through the first permanent note.
    4. ✋ **Ontology and preset** (when there are documents): the skill proposes a preset from `presets/`
       (`rfi-proposal`, `erp-rollout-program`) or the core only, and drafts the domain ontology, shapes, spreadsheet
       mappings, topic/fact rules and saved queries. You approve before the final build.
@@ -203,14 +205,15 @@ The commands use `REPO` for the clone path. Change the variable if you clone som
    ├── wiki/                    team notes (fleeting / literature / permanent)
    ├── docs/                    deliverables (never indexed)
    ├── kb/
-   │   ├── config.yaml          engine_version, ontology, sources, graphify.version/source/scope
+   │   ├── config.yaml          engine_version, kb_setup_version, ontology, sources, graphify.version/source/scope
    │   ├── SETUP.md             decisions, authorizations, graphify version and source
    │   ├── IMPROVEMENTS.md      improvement backlog
    │   └── ontology/ mappings/ queries/ evals/ wiki/
    ├── .claude/skills/kb/       the workspace /kb skill (+ approved task skills)
+   ├── scripts/kb-engine/       optional engine copy for people without kb-setup (ENGINE.json + text files)
    ├── CLAUDE.md                KB rules and coexistence rules with graphify
    ├── README.md                the workspace method
-   ├── .graphifyignore          excludes kb/ and .claude/ from graphify
+   ├── .graphifyignore          excludes kb/, .claude/ and scripts/kb-engine/ from graphify
    ├── .gitignore               kb-setup block (binaries, kb/.lock, graphify-out/)
    └── graphify-out/            graph.json, GRAPH_REPORT.md, graph.html (kept out of git)
    ```
@@ -230,26 +233,62 @@ The commands use `REPO` for the clone path. Change the variable if you clone som
 |---|---|---|
 | `adopt` | migrate an existing KB (v1 layout or local engine) | [`references/migration.md`](references/migration.md) |
 | `update` | incremental update of the KB and graphify after changes in `raw/` or `wiki/` | [`references/improvements.md`](references/improvements.md) |
-| `upgrade` | the engine or the fork's graphify changed version: changelog, migration and rebuild | [`references/migration.md`](references/migration.md) |
+| `upgrade` | kb-setup, the engine or the fork's graphify changed version: changelog, migration, rebuild and engine copy refresh | [`references/migration.md`](references/migration.md) |
 | `graphify` | reinstall, check the version, change the scope or rebuild graphify | [`references/graphify.md`](references/graphify.md) |
 | `eval` | tokens, time and quality: no KB × graphify only × KB + graphify | [`references/evals.md`](references/evals.md) |
-| `status` | health of the engine, versions, policies and graphify | [`SKILL.md`](SKILL.md) |
+| `status` | health of the engine, versions, engine copy, policies and graphify | [`SKILL.md`](SKILL.md) |
 | `review` | analyze usage and apply approved improvements from the backlog | [`references/improvements.md`](references/improvements.md) |
 | `preset` | extract a generic preset from a workspace | [`references/presets.md`](references/presets.md) |
 
-## Updating the skill
+## Versioning and updates
 
-```bash
-git -C "$REPO" pull
-```
+kb-setup carries two versions:
 
-The symlink already points to the new version, and the editable graphify is updated as well. If the graphify version
-changed, run `graphify install --platform claude` to refresh the `/graphify` skill. Then run `/kb-setup upgrade` in
-each workspace: it compares `engine_version` and `graphify.version` in `kb/config.yaml`, shows the changelog and
-rebuilds what is needed, always with confirmation.
+| Version | Where | When it goes up |
+|---|---|---|
+| kb-setup (the skill) | `VERSION`, history in [`CHANGELOG.md`](CHANGELOG.md) | every change in `kb-setup/` that should reach users |
+| engine | `ENGINE_VERSION` in `scripts/kb.py` | only when the engine's behavior or compatibility changes |
 
-If you installed with `npx skills`, update with `npx skills update kb-setup -g` and then run `/kb-setup upgrade` in each
-workspace the same way.
+`uv run ~/.claude/skills/kb-setup/scripts/kb.py --version` prints both. Each workspace records them in
+`kb/config.yaml` (`kb_setup_version`, `engine_version`), and the engine warns when either one is behind the installed
+version in major.minor.
+
+**What Claude checks, and when**
+
+- At the start of every `/kb-setup` mode it runs `kb.py check-update`, which reads the published `VERSION` (3 s
+  timeout). If a newer version exists, Claude shows it with the changelog link and the update command, and offers to
+  run it. Offline, behind a proxy or on any error, the check is skipped without comment.
+- `/kb` never goes to the network. It only repeats the engine's version warnings and suggests `/kb-setup upgrade`.
+
+**How to update**
+
+- Clone + symlink: `git -C "$REPO" pull`. The symlink already points to the new version, and the editable graphify
+  is updated as well. If the graphify version changed, run `graphify install --platform claude` to refresh the
+  `/graphify` skill.
+- `npx skills`: `npx skills update kb-setup -g`. The installed copy does not update itself, which is why
+  `check-update` exists.
+- Then open a new Claude Code session and run `/kb-setup upgrade` in each workspace. It compares `kb_setup_version`,
+  `engine_version` and `graphify.version` in `kb/config.yaml`, shows the changelog, regenerates the workspace files,
+  refreshes the engine copy and rebuilds what is needed, always with confirmation.
+
+### Engine copy in the workspace
+
+`/kb-setup init` (and `adopt`/`upgrade`) asks whether to copy the engine into the workspace. With the copy, someone
+who opens the folder without kb-setup (a teammate on OneDrive, for example) can still consult the KB with
+`uv run scripts/kb-engine/kb.py`; only uv and Claude Code are needed.
+
+- **What goes in:** `kb.py`, `kb.py.lock`, `core_renames.py`, `VERSION`, the core ontology and shapes, the core queries
+  and `prompts.md`, plus `ENGINE.json` with the versions, the source, the date and a sha256 per file. Text only: the
+  dependencies stay in the uv cache, outside the workspace.
+- **Precedence:** the central engine (`~/.claude/skills/kb-setup`) always wins; the copy is the fallback. When neither
+  exists, Claude offers to install kb-setup with `npx skills`.
+- **Limits:** the copy consults and updates the KB, but it cannot `scaffold` or refresh itself, and curation
+  (`/kb-setup upgrade`, `eval`, `review`, skills, ontology) still needs kb-setup.
+- **Who updates it:** the curator, through `/kb-setup upgrade`. `kb.py vendor --check` reports whether the copy is
+  outdated and `kb.py vendor` refreshes it.
+- **When to use it:** recommended for OneDrive/Teams workspaces and for read-only consumers; unnecessary for
+  individual use with git.
+- It lives in `scripts/kb-engine/`, never in `scripts/kb/`, which marks a v1 workspace for `adopt`.
 
 ## Confidentiality (summary)
 
@@ -282,6 +321,8 @@ workspace the same way.
 ```
 kb-setup/
 ├── SKILL.md            command router and principles (what Claude reads)
+├── VERSION             kb-setup version (semver), read by kb.py and by check-update
+├── CHANGELOG.md        one entry per version: changes, engine version, migration steps
 ├── README.md           this file (ignored by Claude)
 ├── README.pt-BR.md     Portuguese version of this file (ignored by Claude)
 ├── scripts/            kb.py (engine) + kb.py.lock, eval_report.py, core_renames.py
@@ -293,6 +334,10 @@ kb-setup/
 └── evals/evals.json    test cases for the skill itself
 ```
 
+- **Version bump:** every change in `kb-setup/` that should reach users raises `VERSION` and gets a `CHANGELOG.md`
+  entry naming the engine version it ships and the migration steps for existing workspaces. `ENGINE_VERSION` in
+  `scripts/kb.py` goes up only when the engine's behavior or compatibility changes. `check-update` reads `VERSION`
+  from the `v8` branch on GitHub, so users see a bump only after it is pushed.
 - **Skill evals:** `evals/evals.json` holds the prompt, expected output and assertions for each case. Run them with
   the `skill-creator` skill, which executes the cases in subagents and grades the assertions. The corpora the cases
   use (`corpus-rfp`, `fixture-initialized`) are not in this repository.
