@@ -36,6 +36,7 @@ import argparse
 import base64
 import datetime as dt
 import fcntl
+import fnmatch
 import getpass
 import hashlib
 import io
@@ -57,7 +58,7 @@ import yaml
 
 warnings.filterwarnings("ignore")
 
-ENGINE_VERSION = "2.1.0"          # semver of the engine; workspaces record it in kb/config.yaml
+ENGINE_VERSION = "2.2.0"          # semver of the engine; workspaces record it in kb/config.yaml
 EXTRACTOR_VERSION = "10"           # bump when extract-det output changes
 CONVERTER_VERSION = "5"           # bump when convert output changes
 ENGINE_DIR = Path(__file__).resolve().parent
@@ -108,7 +109,9 @@ ONTOLOGY_DIR = KB / "ontology"
 MAPPINGS_DIR = KB / "mappings"
 QUERIES_DIR = KB / "queries"
 WIKI_OUT = KB / "wiki"
-LOCK_FILE = KB / ".lock"
+LOCK_FILE = KB / "curator-lock.json"   # not kb/.lock: ".lock" is an invalid OneDrive name and never syncs
+LEGACY_LOCK_FILE = KB / ".lock"          # engine < 2.2: still honored and removed by unlock
+INVENTORY_FILE = KB / "inventory.json"
 
 
 def _read_config_raw() -> dict:
@@ -168,6 +171,9 @@ DEFAULT_CONFIG = {
     "facts": {},
     "attachments": [],
     "ask": {"text_props": {}},
+    # kb/inventory.json scope (fnmatch, case-insensitive): patterns with "/" match the relative path, others any path part
+    "inventory": {"exclude": [".git/*", "docs/*", "graphify-out/*/*", "*/graphify-out/*", ".claude/settings.local.json",
+                              ".DS_Store", "desktop.ini", "Thumbs.db", "~$*", "*.tmp"]},
 }
 
 # OneDrive/Teams conflict copies: "<name>-<MACHINE>.ext"
@@ -444,6 +450,8 @@ class Source:
         self.layer = layer
         self.rel = rel(path) if path.exists() else unicodedata.normalize("NFC", path.relative_to(ROOT).as_posix())
         self.id = slug(self.rel)
+        if len(self.id) > 200:  # kb/manifest/<id>.json must fit the 255-byte file name limit
+            self.id = self.id[:180].rstrip("-") + "-" + sha256_text(self.rel)[:12]
         self.family = family_stem(unicodedata.normalize("NFC", path.stem))
 
     @property
@@ -583,11 +591,12 @@ def lock_identity() -> dict:
 
 
 def read_lock() -> dict | None:
-    if LOCK_FILE.exists():
-        try:
-            return json.loads(LOCK_FILE.read_text(encoding="utf-8"))
-        except json.JSONDecodeError:
-            return {"user": "?", "host": "?", "started": "1970-01-01T00:00:00+00:00"}
+    for f in (LOCK_FILE, LEGACY_LOCK_FILE):
+        if f.exists():
+            try:
+                return json.loads(f.read_text(encoding="utf-8"))
+            except json.JSONDecodeError:
+                return {"user": "?", "host": "?", "started": "1970-01-01T00:00:00+00:00"}
     return None
 
 
@@ -604,7 +613,7 @@ def lock_age(lk: dict) -> dt.timedelta:
 
 
 class CuratorLock:
-    """Advisory lock in kb/.lock. Reentrant for the same user/machine."""
+    """Advisory lock in kb/curator-lock.json (kb/.lock before engine 2.2). Reentrant for the same user/machine."""
 
     def __init__(self, cfg: dict, command: str):
         self.cfg, self.command, self.acquired = cfg, command, False
@@ -2291,6 +2300,13 @@ def cmd_status(args, cfg):
                       f"manual_fields): {', '.join(no_version)}")
     for u in unsupported:
         alerts.append(f"UNSUPPORTED (skipped): {u}")
+    if uses_onedrive(cfg):
+        paths = inventory_walk(cfg)
+        for p, why in onedrive_name_issues(sorted(paths), paths):
+            alerts.append(f"WILL NOT SYNC (OneDrive): {p} — {why}")
+        if not INVENTORY_FILE.exists():
+            alerts.append(f"NO INVENTORY: {rel(INVENTORY_FILE)} is missing, so consumers cannot audit their copy "
+                          f"(the next update writes it, or {KB_CMD} inventory)")
     print("\nAlerts:" if alerts else "\nAlerts: none")
     for a in alerts:
         print(f"  - {a}")
@@ -2385,6 +2401,9 @@ def run_pipeline(args, cfg, command: str):
             print("\nPending for Claude:")
             for p in pend:
                 print(f"  - {p}")
+        if uses_onedrive(cfg):
+            print()
+            report_inventory(cfg)
         if conflicts:
             print("\nOneDrive conflict copies: " + ", ".join(conflicts))
 
@@ -2414,8 +2433,291 @@ def cmd_unlock(args, cfg):
         return
     if not lock_is_mine(lk) and not args.force:
         die(f"lock held by {lk.get('user')}@{lk.get('host')} since {lk.get('started')} ({lock_age(lk)} ago); use --force only after confirming with the holder", 2)
-    LOCK_FILE.unlink()
+    if uses_onedrive(cfg):  # covers what ran after update (graphify) before the lock goes
+        report_inventory(cfg)
+    for f in (LOCK_FILE, LEGACY_LOCK_FILE):
+        if f.exists():
+            f.unlink()
     print("lock released")
+
+
+# ----------------------------------------------------------------------------- OneDrive inventory / audit
+
+INVENTORY_SKIP = {f"kb/{f.name}" for f in (INVENTORY_FILE, LOCK_FILE, LEGACY_LOCK_FILE)}
+ONEDRIVE_BAD_CHARS = set('"*:<>?\\|')
+ONEDRIVE_BAD_NAME_RE = re.compile(r"^(con|prn|aux|nul|com[0-9]|lpt[0-9])(\..*)?$|^\.lock$|^desktop\.ini$", re.I)
+ONEDRIVE_MAX_PATH = 400
+
+
+def uses_onedrive(cfg: dict) -> bool:
+    v = cfg.get("versioning") or ("git" if is_git() else "onedrive")
+    return v in ("onedrive", "both")
+
+
+def _inv_excluded(path: str, pats: list[str]) -> bool:
+    low = path.lower()
+    parts = [x for x in low.split("/") if x]
+    for pat in pats:
+        pat = pat.lower()
+        if "/" in pat:
+            if fnmatch.fnmatchcase(low, pat):
+                return True
+        elif any(fnmatch.fnmatchcase(x, pat) for x in parts):
+            return True
+    return False
+
+
+def inventory_walk(cfg: dict) -> dict[str, Path]:
+    """Files a consumer needs (NFC relative path → local path): the whole workspace minus inventory.exclude,
+    the inventory itself, the curator lock and OneDrive conflict copies."""
+    pats = [str(p) for p in ((cfg.get("inventory") or {}).get("exclude") or [])]
+    out: dict[str, Path] = {}
+    for dirpath, dirnames, filenames in os.walk(ROOT):
+        d = unicodedata.normalize("NFC", os.path.relpath(dirpath, ROOT).replace(os.sep, "/"))
+        d = "" if d == "." else d + "/"
+        dirnames[:] = sorted(x for x in dirnames if not _inv_excluded(d + unicodedata.normalize("NFC", x) + "/", pats))
+        for f in sorted(filenames):
+            r, p = d + unicodedata.normalize("NFC", f), Path(dirpath) / f
+            if r in INVENTORY_SKIP or CONFLICT_RE.search(Path(f).stem) or _inv_excluded(r, pats) or not p.is_file():
+                continue
+            out[r] = p
+    return out
+
+
+def onedrive_name_issues(rels: list[str], paths: dict[str, Path] | None = None) -> list[tuple[str, str]]:
+    """(path, reason) for files or folders OneDrive will not sync: invalid characters or names, trailing space/dot,
+    local path over 400 characters, names that differ only in case, symbolic links."""
+    issues: dict[str, list[str]] = defaultdict(list)
+    variants: dict[str, set[str]] = defaultdict(set)
+    for r in rels:
+        parts = r.split("/")
+        for i, part in enumerate(parts):
+            where = "/".join(parts[: i + 1]) + ("" if i == len(parts) - 1 else "/")
+            variants[where.casefold()].add(where)
+            why = []
+            bad = sorted({c for c in part if c in ONEDRIVE_BAD_CHARS})
+            if bad:
+                why.append("invalid character " + " ".join(bad))
+            if part != part.strip(" "):
+                why.append("leading or trailing space")
+            if part.endswith("."):
+                why.append("trailing dot")
+            if ONEDRIVE_BAD_NAME_RE.match(part):
+                why.append("reserved name")
+            if "_vti_" in part.lower():
+                why.append("'_vti_' in the name")
+            if part.startswith("~$"):
+                why.append("name starts with ~$")
+            for w in why:
+                if w not in issues[where]:
+                    issues[where].append(w)
+        n = len(os.path.join(str(ROOT), r))
+        if n > ONEDRIVE_MAX_PATH:
+            issues[r].append(f"local path has {n} characters (OneDrive limit: {ONEDRIVE_MAX_PATH})")
+        if paths and r in paths and paths[r].is_symlink():
+            issues[r].append("symbolic link (OneDrive does not sync links)")
+    for vs in variants.values():
+        if len(vs) > 1:
+            for v in vs:
+                issues[v].append("differs only in case from " + ", ".join(sorted(vs - {v})))
+    return sorted((p, "; ".join(w)) for p, w in issues.items() if w)
+
+
+def _issue_for(r: str, issues: dict[str, str]) -> str:
+    """Reason of a file or of its nearest flagged folder."""
+    parts = r.split("/")
+    for i in range(len(parts), 0, -1):
+        k = "/".join(parts[:i]) + ("" if i == len(parts) else "/")
+        if k in issues:
+            return issues[k] if i == len(parts) else f"{k}: {issues[k]}"
+    return ""
+
+
+def _hash_cache_path() -> Path:
+    """Local, per-machine sha256 cache keyed by size + mtime_ns (never synced: comparison between machines is by content)."""
+    base = Path(os.environ.get("XDG_CACHE_HOME") or Path.home() / ".cache")
+    return base / "kb-setup" / f"inventory-{sha256_text(str(ROOT))[:16]}.json"
+
+
+def build_inventory(cfg: dict) -> tuple[dict[str, dict], dict[str, Path]]:
+    paths = inventory_walk(cfg)
+    cache_p = _hash_cache_path()
+    try:
+        cache = json.loads(cache_p.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        cache = {}
+    files, new_cache = {}, {}
+    for r, p in paths.items():
+        try:
+            st = p.stat()
+            c = cache.get(r)
+            sha = c[2] if c and c[0] == st.st_size and c[1] == st.st_mtime_ns else sha256_file(p)
+        except OSError as e:  # e.g. a file locked by Office on Windows
+            print(f"WARNING: inventory skipped {r}: {e}", file=sys.stderr)
+            continue
+        files[r] = {"size": st.st_size, "sha256": sha}
+        new_cache[r] = [st.st_size, st.st_mtime_ns, sha]
+    try:
+        cache_p.parent.mkdir(parents=True, exist_ok=True)
+        cache_p.write_text(json.dumps(new_cache), encoding="utf-8")
+    except OSError:
+        pass
+    return files, paths
+
+
+def read_inventory() -> dict | None:
+    if not INVENTORY_FILE.exists():
+        return None
+    try:
+        return json.loads(INVENTORY_FILE.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return {}
+
+
+def _dump_inventory(inv: dict) -> str:
+    """Sorted keys, one line per file (small diffs)."""
+    lines = []
+    for k in sorted(inv):
+        if k == "files":
+            items = [f"    {json.dumps(p, ensure_ascii=False)}: {json.dumps(v, sort_keys=True)}" for p, v in sorted(inv[k].items())]
+            lines.append('  "files": {' + ("\n" + ",\n".join(items) + "\n  }" if items else "}"))
+        else:
+            lines.append(f"  {json.dumps(k)}: {json.dumps(inv[k], ensure_ascii=False)}")
+    return "{\n" + ",\n".join(lines) + "\n}\n"
+
+
+def write_inventory(cfg: dict) -> tuple[bool, dict, list[tuple[str, str]]]:
+    """Write kb/inventory.json; keep the previous one (and its `generated`) when no file or hash changed."""
+    files, paths = build_inventory(cfg)
+    prev = read_inventory()
+    changed = False
+    if prev and prev.get("files") == files:
+        inv = prev
+    else:
+        me = lock_identity()
+        inv = {"generated": now_iso(), "by": me["name"] or me["user"], "host": me["host"], "engine_version": ENGINE_VERSION,
+               "kb_setup_version": KB_SETUP_VERSION, "count": len(files), "bytes": sum(f["size"] for f in files.values()),
+               "files": files}
+        changed = write_if_changed(INVENTORY_FILE, _dump_inventory(inv))
+    return changed, inv, onedrive_name_issues(sorted(files), paths)
+
+
+def fmt_bytes(n: int) -> str:
+    return f"{n / 1e6:.1f} MB" if n >= 1e5 else f"{n / 1e3:.1f} kB"
+
+
+def report_inventory(cfg: dict):
+    changed, inv, issues = write_inventory(cfg)
+    print(f"inventory: {rel(INVENTORY_FILE)} {'written' if changed else 'unchanged'} "
+          f"({inv.get('count', 0)} files, {fmt_bytes(inv.get('bytes', 0))})")
+    for p, why in issues:
+        print(f"WILL NOT SYNC (OneDrive): {p} — {why}")
+    if issues:
+        print("  rename or move these files so every teammate gets them, then run update again")
+
+
+def cmd_inventory(args, cfg):
+    if not uses_onedrive(cfg) and not args.force:
+        print(f"inventory skipped: versioning is {cfg.get('versioning') or 'git'}. git already records what a clone must have "
+              "(git status shows what differs), and binaries stay out of git on purpose, so an inventory would list files a "
+              "clone never gets. Use --force to write kb/inventory.json anyway.")
+        return
+    with CuratorLock(cfg, "inventory"):
+        report_inventory(cfg)
+
+
+def _ago(iso: str | None) -> str:
+    try:
+        d = dt.datetime.now().astimezone() - dt.datetime.fromisoformat(str(iso))
+    except (TypeError, ValueError):
+        return "?"
+    if d.days >= 1:
+        return f"{d.days} day{'s' if d.days > 1 else ''} ago"
+    h = d.seconds // 3600
+    return f"{h} hour{'s' if h > 1 else ''} ago" if h else "less than an hour ago"
+
+
+def cmd_audit(args, cfg):
+    """Compare this copy of the workspace with kb/inventory.json (read-only). Exit 1 on MISSING/DIFFERENT."""
+    inv = read_inventory()
+    if inv is None and not uses_onedrive(cfg):
+        die(f"no {rel(INVENTORY_FILE)}: versioning is {cfg.get('versioning') or 'git'}, so `git status` shows what this "
+            f"clone lacks; the curator can write an inventory with {KB_CMD} inventory --force", 2)
+    if inv is None:
+        die(f"no {rel(INVENTORY_FILE)} in {ROOT}: this copy cannot be audited yet. Ask the KB curator to run /kb update "
+            f"(it writes the inventory; {KB_CMD} inventory writes it alone)", 2)
+    if not inv.get("files"):
+        die(f"{rel(INVENTORY_FILE)} is empty or unreadable (still syncing, or a conflict?): wait for OneDrive to show "
+            "'up to date' and run audit again", 2)
+    expected = {unicodedata.normalize("NFC", k): v for k, v in inv["files"].items()}
+    local = inventory_walk(cfg)
+    scope = None
+    if args.path:
+        p = Path(args.path).expanduser()
+        p = p.resolve() if p.is_absolute() else (ROOT / p).resolve()
+        try:
+            scope = unicodedata.normalize("NFC", p.relative_to(ROOT).as_posix())
+        except ValueError:
+            die(f"{args.path} is outside the workspace {ROOT}")
+        if scope != ".":
+            inside = lambda r: r == scope or r.startswith(scope.rstrip("/") + "/")  # noqa: E731
+            expected = {r: v for r, v in expected.items() if inside(r)}
+            local = {r: v for r, v in local.items() if inside(r)}
+        else:
+            scope = None
+    issues = dict(onedrive_name_issues(sorted(expected)))
+    missing, different, ok = [], [], 0
+    if not args.quick and not args.json:
+        print("full check: reads every file, so online-only files are downloaded (keep the folder 'Always keep on this "
+              "device'); --quick checks existence and size only")
+    for r, e in sorted(expected.items()):
+        p = local.get(r)
+        if p is None:
+            why = _issue_for(r, issues)
+            if not why and any(x.startswith(".") for x in r.split("/")):
+                why = "hidden (dot) name: check that this OneDrive syncs it"
+            missing.append({"path": r, "size": e.get("size"), "reason": why})
+            continue
+        try:
+            size = p.stat().st_size
+            if size != e.get("size"):
+                different.append({"path": r, "expected_size": e.get("size"), "size": size, "reason": "size differs"})
+            elif not args.quick and sha256_file(p) != e.get("sha256"):
+                different.append({"path": r, "expected_size": e.get("size"), "size": size, "reason": "content differs (sha256)"})
+            else:
+                ok += 1
+        except OSError as ex:
+            different.append({"path": r, "expected_size": e.get("size"), "size": None, "reason": f"unreadable: {ex}"})
+    extra = [{"path": r, "size": local[r].stat().st_size} for r in sorted(set(local) - set(expected))]
+    head = {k: inv.get(k) for k in ("generated", "by", "host", "engine_version", "kb_setup_version", "count", "bytes")}
+    if args.json:
+        print(json.dumps({"inventory": head, "mode": "quick" if args.quick else "full", "path": scope, "ok": ok,
+                          "missing": missing, "different": different, "extra": extra}, ensure_ascii=False, indent=2))
+        sys.exit(1 if missing or different else 0)
+    print(f"inventory: {head['count']} files, {fmt_bytes(head['bytes'] or 0)} · generated {head['generated']} "
+          f"({_ago(head['generated'])}) by {head['by']}@{head['host']} · engine {head['engine_version']} · "
+          f"kb-setup {head['kb_setup_version']}")
+    print(f"mode: {'quick (existence and size)' if args.quick else 'full (sha256)'}" + (f" · path: {scope}" if scope else ""))
+    rows = [["MISSING", m["path"], m["reason"] or "-"] for m in missing]
+    rows += [["DIFFERENT", d["path"], d["reason"] + (f" ({d['size']} vs {d['expected_size']} bytes)" if d["reason"] == "size differs" else "")]
+             for d in different]
+    rows += [["EXTRA", x["path"], "not in the inventory"] for x in extra]
+    if rows:
+        print()
+        print(fmt_table(["status", "path", "detail"], rows[:300], 100))
+        if len(rows) > 300:
+            print(f"... {len(rows) - 300} more (use --json)")
+    print(f"\naudit: {ok} files ok · {len(missing)} missing · {len(different)} different · {len(extra)} extra")
+    if missing:
+        print("- MISSING: did not replicate to this machine. Check the OneDrive icon (errors, 'up to date') and mark the "
+              "folder 'Always keep on this device'"
+              + ("; ask the curator to rename the files with a reason above" if any(m["reason"] for m in missing) else "")
+              + "; otherwise an admin may block the file type.")
+    if different:
+        print("- DIFFERENT: OneDrive is still syncing, or the file was edited after the last update (ask the curator for /kb update).")
+    if extra:
+        print("- EXTRA: new files the curator has not processed yet (/kb update); answers do not cover them.")
+    sys.exit(1 if missing or different else 0)
 
 
 def cmd_pending_images(args, cfg):
@@ -3159,7 +3461,7 @@ def cmd_wiki(args, cfg):
 # ----------------------------------------------------------------------------- lifecycle: scaffold / migrate / volume
 
 WRITE_CMDS = {"log-cost", "convert", "extract-det", "update", "ingest", "lock", "unlock", "unzip", "set-image", "llm-done", "wiki",
-              "new-note", "migrate", "scaffold", "vendor"}
+              "new-note", "migrate", "scaffold", "vendor", "inventory"}
 GITIGNORE_BLOCK = """
 # --- kb-setup ---
 .DS_Store
@@ -3172,6 +3474,7 @@ GITIGNORE_BLOCK = """
 *.xlsm
 *.zip
 raw/**/*.assets/
+kb/curator-lock.json
 kb/.lock
 graphify-out/
 # --- /kb-setup ---
@@ -3549,10 +3852,16 @@ def main():
         p = add(name, fn, h)
         p.add_argument("path", nargs="?")
         p.add_argument("--force", action="store_true")
-    p = add("lock", cmd_lock, "acquire the curator lock (kb/.lock)")
+    p = add("lock", cmd_lock, "acquire the curator lock (kb/curator-lock.json)")
     p.add_argument("--command-name", default=None)
-    p = add("unlock", cmd_unlock, "release the curator lock")
+    p = add("unlock", cmd_unlock, "release the curator lock (OneDrive/both: rewrites kb/inventory.json first)")
     p.add_argument("--force", action="store_true")
+    p = add("inventory", cmd_inventory, "write kb/inventory.json (path, size, sha256 of every needed file; OneDrive/both)")
+    p.add_argument("--force", action="store_true", help="write it even when versioning is git")
+    p = add("audit", cmd_audit, "compare this copy with kb/inventory.json: MISSING / DIFFERENT / EXTRA (read-only)")
+    p.add_argument("path", nargs="?", help="audit only this subfolder")
+    p.add_argument("--quick", action="store_true", help="existence and size only (no download of online-only files)")
+    p.add_argument("--json", action="store_true")
     p = add("pending-images", cmd_pending_images, "list images with a PENDENTE marker")
     p.add_argument("path", nargs="?")
     p.add_argument("--json", action="store_true")

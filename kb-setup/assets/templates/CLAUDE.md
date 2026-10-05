@@ -10,6 +10,7 @@
 - At the start of KB work: `KB status` (curator lock, overdue notes, OneDrive conflict copies, engine version), where `KB` is `uv run ~/.claude/skills/kb-setup/scripts/kb.py` if that file exists, else `uv run scripts/kb-engine/kb.py` (workspace copy), else see the next bullet.
 - **kb-setup meta skill:** when it is missing and needed (no engine at all, or curation with only the workspace copy: upgrade, eval, review, skills, ontology), explain and offer to install it with `npx skills add wagnerpinheiro/graphify-kb --skill kb-setup -g -a claude-code` (needs Node.js; confirm first; open a new session afterwards). When the engine warns about a newer kb-setup or engine version, suggest `/kb-setup upgrade`.
 - After changes in raw/ or wiki/: `/kb update` (no hooks; manual). Only the curator updates; others may use read-only mode.
+- OneDrive/Teams consumers: `KB audit` (or `--quick`, without downloading) checks that this copy has every file of the curator's last update (`kb/inventory.json`); MISSING or DIFFERENT files mean answers may be incomplete.
 - When editing notes in wiki/: update `last_reviewed` (YYYY-MM-DD) and `reviewed_by`. New notes: `/kb new-note "<title>"` (`type: fleeting | literature | permanent`, `[[links]]`).
 - **Full reading by an LLM** (prose extraction, graphify over raw/, eval baselines) only with explicit per-document authorization (recorded in kb/SETUP.md).
 - Execution: one simple command per Bash call (auto mode); no MCP, hooks or settings changes; no external LLM keys.

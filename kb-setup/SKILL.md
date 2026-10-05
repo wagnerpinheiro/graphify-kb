@@ -24,7 +24,7 @@ These come from a real deployment and its evals (details in `references/lessons.
 2. **Documents only in subagents.** Any reading of document content beyond the compact output of `KB ask/show/query` (multi-page reading, Grep in raw/, image description, prose extraction, graphify extraction, eval answer keys) runs in a `general-purpose` subagent that returns compact results with citations. This keeps client text out of the main context.
 3. **Per-document authorization** for full reading by an LLM (prose extraction, graphify over raw/, token-eval baseline). Record authorizations in `kb/SETUP.md`.
 4. **Respect managed policies.** Re-read them at every init/upgrade (`references/discovery.md`): no MCP, no hooks, no settings changes, no unapproved marketplaces; one simple command per Bash call so auto mode works; no external LLM keys (never Gemini for graphify).
-5. **Portable between git and OneDrive/Teams.** Relative paths, content hashes (never mtime), nothing binary or `.venv` inside the workspace, per-source manifests, advisory curator lock, conflict-copy detection, read-only mode for consumers. The only code allowed in the workspace is the text copy of the engine in `scripts/kb-engine/`, when the user chooses it (dependencies stay in the uv cache, outside the workspace).
+5. **Portable between git and OneDrive/Teams.** Relative paths, content hashes (never mtime), nothing binary or `.venv` inside the workspace, per-source manifests, advisory curator lock (`kb/curator-lock.json`; `.lock` is an invalid OneDrive name), conflict-copy detection, read-only mode for consumers. On OneDrive/both the curator writes `kb/inventory.json` (path, size, sha256 of every needed file) and any machine checks its copy with `KB audit`: replication is verified by content, never by mtime. The only code allowed in the workspace is the text copy of the engine in `scripts/kb-engine/`, when the user chooses it (dependencies stay in the uv cache, outside the workspace).
 6. **Precedence.** The most recent document wins (date, then version within the same document family); `raw/` wins over `wiki/` unless a note lists the document/entity in `overrides:`. Overdue notes keep precedence but trigger alerts.
 7. **Checkpoints belong to the user.** Ontology, mappings, topics/facts rules and task skills are proposed and approved. If you test with a draft before approval (cheap and regenerable), say so at that moment. In the **autonomous mode** of init the user delegates these checkpoints: use the recommended draft, mark it "approved in autonomous mode" in `kb/SETUP.md` and present all of it in the closing summary.
 8. **Verify subagent work** before using it: self-contained prompts, a verifiable deliverable (file written, commands run, counts) and a re-run if a subagent returns suspiciously fast or only echoes the instruction. Subagents may be refused the Write tool for report files: have them return reports as text and save them yourself.
@@ -47,7 +47,7 @@ The user may say the subcommand or describe the intent. Identify it, then follow
 | `eval` | tokens/time/quality: no KB × graphify only × KB + graphify | evals |
 | `review` | analyze usage and propose improvements; manage the backlog | improvements |
 | `preset` | extract a generalized preset from a workspace | presets |
-| `status` | `KB status` + engine/versions/engine copy/policy/graphify health | — |
+| `status` | `KB status` + `KB audit --quick` + engine/versions/engine copy/policy/graphify health | — |
 
 ## init
 
@@ -66,7 +66,7 @@ The user may say the subcommand or describe the intent. Identify it, then follow
    5. **Checkpoint:** present the ontology, mappings and rules and get approval (autonomous: approve the recommended draft yourself, record it in `kb/SETUP.md` and list it in the closing summary). Then run `KB update` again, `KB validate` and `KB wiki`, followed by `KB unlock`.
 7. **graphify (required)** (`references/graphify.md`): install or verify graphify from the fork (expected version recorded in `kb/config.yaml` → `graphify.version`), write `raw/.graphifyignore` and the root `.graphifyignore`, then build the graph (code + `docs/` + `wiki/`; raw/ only authorized documents) in a subagent. Record version, source and scope in `kb/SETUP.md` and write the coexistence rules into `CLAUDE.md`. Do not close init without a built `graphify-out/graph.json`; if the build is blocked (policy, missing `uv`, GEMINI/GOOGLE key set), stop and ask.
 8. **Task skills** (`references/task-skills.md`): propose 2–4 from the material found (preset templates) and generate only those the user approves. Autonomous: generate only the preset templates whose material was found (max 4).
-9. **Close:** run the readiness checklist at the end of `references/lessons.md`, record the decisions in `kb/SETUP.md`, and give the user a short summary, open questions and improvement suggestions. Offer `eval` as a baseline. Autonomous: include a table of the assumed decisions (checkpoints included) and how to change each one (tell me, or `/kb-setup review`).
+9. **Close:** OneDrive/both: `KB inventory` as the last engine command (after graphify and `KB vendor`), so consumers can `KB audit` their copy; fix any `WILL NOT SYNC` file it reports. Then run the readiness checklist at the end of `references/lessons.md`, record the decisions in `kb/SETUP.md`, and give the user a short summary, open questions and improvement suggestions. Offer `eval` as a baseline. Autonomous: include a table of the assumed decisions (checkpoints included) and how to change each one (tell me, or `/kb-setup review`).
 
 **Limits of the autonomous mode (never assumed):**
 - Per-document authorization for full reading by an LLM (Principle 3) stays at the default: no document authorized.
@@ -76,7 +76,7 @@ The user may say the subcommand or describe the intent. Identify it, then follow
 
 ## adopt
 
-Follow `references/migration.md`. In short: work on a copy first, run `KB migrate --dry-run` and show the plan, then apply with confirmation. Remove ontology declarations now provided by the core, regenerate `/kb` and `CLAUDE.md` from the templates, `KB update --force` + `validate`, compare key answers before/after, then (with confirmation) delete the old local engine (`scripts/kb/`). Ask the engine-copy question too: the new copy goes to `scripts/kb-engine/` (`KB vendor`), never to `scripts/kb/`, which marks a v1 workspace. graphify is required here too: install or verify it from the fork, add the `graphify:` block to `kb/config.yaml` if missing, and build or rebuild the graph (`references/graphify.md`).
+Follow `references/migration.md`. In short: work on a copy first, run `KB migrate --dry-run` and show the plan, then apply with confirmation. Remove ontology declarations now provided by the core, regenerate `/kb` and `CLAUDE.md` from the templates, `KB update --force` + `validate`, compare key answers before/after, then (with confirmation) delete the old local engine (`scripts/kb/`). OneDrive/both: finish with `KB inventory` (after graphify and the engine copy); a leftover `kb/.lock` is still honored and `KB unlock` removes it. Ask the engine-copy question too: the new copy goes to `scripts/kb-engine/` (`KB vendor`), never to `scripts/kb/`, which marks a v1 workspace. graphify is required here too: install or verify it from the fork, add the `graphify:` block to `kb/config.yaml` if missing, and build or rebuild the graph (`references/graphify.md`).
 
 ## update
 
@@ -84,11 +84,11 @@ Follow `references/migration.md`. In short: work on a copy first, run `KB migrat
 2. `KB lock --command-name update`, then `KB update`: only what changed, by content hash.
 3. Pending images go to subagents (see init 6.2), then `KB update` again.
 4. graphify (always): check that the installed version matches `graphify.version` in `kb/config.yaml` (warn and offer `graphify` if not), then update the graph in a subagent (`references/graphify.md`, incremental mode): `graphify update .` for code, `/graphify . --update` when docs/, wiki/ or authorized raw/ files changed. Respect `.graphifyignore`.
-5. `KB unlock`. Report what changed, new conflicts (`KB query conflicts`), internal inconsistencies, stale `llm` extractions, and suggestions.
+5. `KB unlock` (OneDrive/both: it rewrites `kb/inventory.json` first, covering graphify-out/). Report what changed, `WILL NOT SYNC` files, new conflicts (`KB query conflicts`), internal inconsistencies, stale `llm` extractions, and suggestions.
 
 ## upgrade
 
-Two versions are tracked: the skill (`VERSION` → `kb_setup_version` in `kb/config.yaml`) and the engine (`ENGINE_VERSION` → `engine_version`). The engine warns when either is behind in major.minor. Show `CHANGELOG.md` for the versions in between, back up `kb/config.yaml`, apply the migration steps listed, regenerate the workspace files from the templates when `kb_setup_version` changed (README, CLAUDE.md KB section, `/kb`, task skills; keep user and `<!-- manual -->` sections), then run `KB update --force`, `validate`, and update both versions. Engine copy: if `scripts/kb-engine/` exists, `KB vendor --check` and, when outdated, `KB vendor`; if it does not, ask the engine-copy question. Details in `references/migration.md`. Never auto-upgrade without confirmation. The same applies to graphify: when the fork's version differs from `graphify.version` in `kb/config.yaml`, show the fork changelog, reinstall from the fork (`references/graphify.md`), rebuild the graph and update `graphify.version` and `kb/SETUP.md`.
+Two versions are tracked: the skill (`VERSION` → `kb_setup_version` in `kb/config.yaml`) and the engine (`ENGINE_VERSION` → `engine_version`). The engine warns when either is behind in major.minor. Show `CHANGELOG.md` for the versions in between, back up `kb/config.yaml`, apply the migration steps listed, regenerate the workspace files from the templates when `kb_setup_version` changed (README, CLAUDE.md KB section, `/kb`, task skills; keep user and `<!-- manual -->` sections), then run `KB update --force`, `validate`, and update both versions. Engine copy: if `scripts/kb-engine/` exists, `KB vendor --check` and, when outdated, `KB vendor`; if it does not, ask the engine-copy question. OneDrive/both: `KB inventory` as the last engine command. Details in `references/migration.md`. Never auto-upgrade without confirmation. The same applies to graphify: when the fork's version differs from `graphify.version` in `kb/config.yaml`, show the fork changelog, reinstall from the fork (`references/graphify.md`), rebuild the graph and update `graphify.version` and `kb/SETUP.md`.
 
 ## graphify, skills, eval, review, preset
 
@@ -100,7 +100,7 @@ Two versions are tracked: the skill (`VERSION` → `kb_setup_version` in `kb/con
 
 ## status
 
-Run `KB status` and `KB --version`, check that `engine_version` and `kb_setup_version` match, report the engine copy state (`KB vendor --check`) and the `KB check-update` result, `.claude/skills/kb` and `CLAUDE.md` presence, graphify health (installed version vs `graphify.version`, `graphify-out/graph.json` present and its age, scope), and the open items in `kb/IMPROVEMENTS.md`.
+Run `KB status`, `KB --version` and, on OneDrive/both, `KB audit --quick` (MISSING/DIFFERENT files on this machine), check that `engine_version` and `kb_setup_version` match, report the engine copy state (`KB vendor --check`) and the `KB check-update` result, `.claude/skills/kb` and `CLAUDE.md` presence, graphify health (installed version vs `graphify.version`, `graphify-out/graph.json` present and its age, scope), and the open items in `kb/IMPROVEMENTS.md`.
 
 ## Answer style (for /kb and task skills you generate)
 

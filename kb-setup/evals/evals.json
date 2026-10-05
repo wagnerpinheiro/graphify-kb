@@ -19,7 +19,7 @@
     "Example notes (fleeting/literature/permanent) clearly marked",
     "Engine validate passes in the workspace",
     "kb ask finds the first note (KB answers from notes)",
-    ".gitignore keeps binaries out and ignores kb/.lock and graphify-out",
+    ".gitignore keeps binaries out and ignores kb/curator-lock.json and graphify-out",
     "kb/SETUP.md records decisions",
     "Questions the user would have been asked are listed",
     "graphify from the fork installed at the expected version (graphify --version == graphify.version in kb/config.yaml)",
@@ -53,6 +53,7 @@
     "graphify installed from the fork at the expected version (graphify --version == graphify.version in kb/config.yaml)",
     "graphify graph built (graphify-out/graph.json) without raw/ documents (raw/.graphifyignore lists them; no raw/graphify-out cache)",
     "OneDrive/Teams guidance follows Microsoft (shortcut + always keep on device + conflict copies)",
+    "kb/inventory.json written after update and `KB audit` reports 0 missing",
     "kb/SETUP.md records decisions and authorizations",
     "Checkpoint proposal written (ontology/mappings/rules)",
     "kb/SETUP.md records Setup mode: autonomous and marks assumed decisions"

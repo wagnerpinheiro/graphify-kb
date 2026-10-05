@@ -5,6 +5,43 @@ record both in `kb/config.yaml` (`kb_setup_version`, `engine_version`). `/kb-set
 version between the workspace's and the installed one and applies the listed migration steps, always with
 confirmation.
 
+## 2.2.0 (2026-10-05) · engine 2.2.0
+File inventory and `KB audit`, so consumers on OneDrive/Teams can tell whether their copy is complete.
+- **`kb/inventory.json`** (OneDrive/both): path (NFC), size and sha256 of every file a consumer needs: the whole
+  workspace, hidden files included (`.claude/skills/`, `.graphifyignore`), except `.git/`, `docs/`, the subfolders of
+  `graphify-out/` (only its top-level files), the inventory itself, the curator lock, conflict copies and OS/Office
+  junk. Configurable in `kb/config.yaml` → `inventory.exclude`. Written at the end of `update`/`ingest`, by `unlock`
+  (covers graphify, which runs after update) and by the new `KB inventory`. Unchanged files keep the file and its
+  `generated` date as they were. Hashes are reused from a per-machine cache outside the workspace
+  (`~/.cache/kb-setup/`, keyed by size + mtime_ns); machines are compared by content only. With git,
+  `KB inventory` explains that git already does this job (`--force` writes it anyway).
+- **`WILL NOT SYNC (OneDrive): <path> — <reason>`** when the inventory is written and in `KB status`: invalid
+  characters (`" * : < > ? \ |`), reserved names (`CON`, `PRN`, `AUX`, `NUL`, `COM0-9`, `LPT0-9`, `.lock`,
+  `desktop.ini`), `_vti_`, `~$` prefix, leading/trailing space, trailing dot, local paths over 400 characters, names
+  that differ only in case, symbolic links. `KB status` also warns `NO INVENTORY` on OneDrive/both.
+- **`KB audit [path] [--quick] [--json]`**, read-only (works with `--read-only` and in `scripts/kb-engine/`): shows who
+  generated the inventory, when and with which version, then lists MISSING (with the probable OneDrive cause),
+  DIFFERENT (sha256, or size with `--quick`) and EXTRA files, and `audit: N files ok · M missing · D different · E extra`.
+  Exit 0 when complete, 1 on MISSING/DIFFERENT (EXTRA only warns), 2 without an inventory. The full check downloads
+  online-only files; `--quick` checks existence and size only.
+- **Curator lock renamed** to `kb/curator-lock.json`: `kb/.lock` is an invalid OneDrive name, so it never synced and
+  other curators never saw it. The engine still honors an old `kb/.lock`, and `unlock` removes both. The `.gitignore`
+  block lists both names.
+- Source ids longer than 200 characters are shortened with a hash suffix (very deep paths made
+  `kb/manifest/<id>.json` exceed the 255-byte file name limit and crashed `update`). Shorter ids do not change.
+- Skill: init (close), adopt and upgrade end with `KB inventory` on OneDrive/both; `status` runs `KB audit --quick`.
+  The `/kb` skill runs `KB audit --quick` once per session for OneDrive readers before the first answer and warns
+  when answers may be incomplete. CLAUDE.md, the workspace README and `references/onedrive-teams-sync.md`
+  (checklist step 14b) mention `KB audit`.
+- **Migration from 2.1.x:**
+  1. set `engine_version: "2.2.0"` and `kb_setup_version: "2.2.0"` in `kb/config.yaml`;
+  2. git/both: add `kb/curator-lock.json` to the `# --- kb-setup ---` block of `.gitignore`, beside `kb/.lock`;
+  3. regenerate from the templates (keep user sections and `<!-- manual -->` blocks): `.claude/skills/kb/SKILL.md`,
+     the CLAUDE.md KB section and the README "Using it" section;
+  4. refresh the engine copy if there is one (`KB vendor`);
+  5. OneDrive/both: `KB update` (or `KB inventory`) writes `kb/inventory.json`; fix any `WILL NOT SYNC` file, then
+     ask each teammate to run `KB audit`.
+
 ## 2.1.1 (2026-10-05) · engine 2.1.0
 Autonomous setup mode for init. Skill files only; the engine is unchanged.
 - init asks first: **autonomous** (recommended) or **guided**. Autonomous takes the recommended default at every

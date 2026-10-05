@@ -155,7 +155,7 @@ The commands use `REPO` for the clone path. Change the variable if you clone som
 
    ```bash
    graphify --version                                   # graphify 0.9.76
-   uv run ~/.claude/skills/kb-setup/scripts/kb.py --version   # kb.py engine 2.1.0 · kb-setup 2.1.1 (central)
+   uv run ~/.claude/skills/kb-setup/scripts/kb.py --version   # kb.py engine 2.2.0 · kb-setup 2.2.0 (central)
    uv run ~/.claude/skills/kb-setup/scripts/kb.py --help
    ```
 
@@ -212,13 +212,14 @@ The commands use `REPO` for the clone path. Change the variable if you clone som
    │   ├── config.yaml          engine_version, kb_setup_version, ontology, sources, graphify.version/source/scope
    │   ├── SETUP.md             decisions, authorizations, graphify version and source
    │   ├── IMPROVEMENTS.md      improvement backlog
+   │   ├── inventory.json       OneDrive/both: path, size and sha256 of every needed file (read by `audit`)
    │   └── ontology/ mappings/ queries/ evals/ wiki/
    ├── .claude/skills/kb/       the workspace /kb skill (+ approved task skills)
    ├── scripts/kb-engine/       optional engine copy for people without kb-setup (ENGINE.json + text files)
    ├── CLAUDE.md                KB rules and coexistence rules with graphify
    ├── README.md                the workspace method
    ├── .graphifyignore          excludes kb/, .claude/ and scripts/kb-engine/ from graphify
-   ├── .gitignore               kb-setup block (binaries, kb/.lock, graphify-out/)
+   ├── .gitignore               kb-setup block (binaries, kb/curator-lock.json, graphify-out/)
    └── graphify-out/            graph.json, GRAPH_REPORT.md, graph.html (kept out of git)
    ```
 
@@ -230,6 +231,8 @@ The commands use `REPO` for the clone path. Change the variable if you clone som
    - Allowing a `raw/` document into graphify: record the authorization in `kb/SETUP.md`, remove its line from
      `raw/.graphifyignore` and run `/kb update` (or `/kb-setup graphify`).
    - Exploration (themes, communities, paths between concepts) or code: `/graphify query "..."`.
+   - OneDrive/Teams: `kb.py audit` shows whether your copy has every file of the curator's last update (MISSING,
+     DIFFERENT, EXTRA); `/kb` runs `audit --quick` once per session and warns when answers may be incomplete.
 
 ## Other modes
 
@@ -240,7 +243,7 @@ The commands use `REPO` for the clone path. Change the variable if you clone som
 | `upgrade` | kb-setup, the engine or the fork's graphify changed version: changelog, migration, rebuild and engine copy refresh | [`references/migration.md`](references/migration.md) |
 | `graphify` | reinstall, check the version, change the scope or rebuild graphify | [`references/graphify.md`](references/graphify.md) |
 | `eval` | tokens, time and quality: no KB × graphify only × KB + graphify | [`references/evals.md`](references/evals.md) |
-| `status` | health of the engine, versions, engine copy, policies and graphify | [`SKILL.md`](SKILL.md) |
+| `status` | health of the engine, versions, engine copy, local copy (`audit --quick`), policies and graphify | [`SKILL.md`](SKILL.md) |
 | `review` | analyze usage and apply approved improvements from the backlog | [`references/improvements.md`](references/improvements.md) |
 | `preset` | extract a generic preset from a workspace | [`references/presets.md`](references/presets.md) |
 
@@ -317,6 +320,12 @@ who opens the folder without kb-setup (a teammate on OneDrive, for example) can 
   `graphify --version` and the source in `uv-receipt.toml`. If it came from PyPI, reinstall from the fork
   (`uv tool install --force -e "$REPO"`). If the fork moved to a new version, run `/kb-setup upgrade` in the workspace
   before rebuilding the graph.
+- **Files missing on OneDrive** (a teammate's answers lack documents the curator has): run
+  `kb.py audit --quick`, then `kb.py audit` (sha256; downloads online-only files). MISSING with a reason means a name
+  OneDrive will not sync (invalid character, reserved name, path over 400 characters, case-only collision): the
+  curator renames it (the update already warned `WILL NOT SYNC`) and runs `/kb update`. MISSING without a reason or
+  DIFFERENT: wait for the OneDrive icon to show "up to date" and mark the folder "Always keep on this device"; if it
+  persists, an admin may block the file type. EXTRA: new files the curator has not processed yet.
 - **`SKILL.md.bak` copies in `~/.claude/skills/graphify`:** any graphify command refreshes outdated copies of its global
   skill and keeps the previous one as `.bak`. Set `GRAPHIFY_NO_AUTO_REFRESH=1` to turn this off.
 

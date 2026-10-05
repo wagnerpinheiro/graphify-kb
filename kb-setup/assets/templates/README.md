@@ -34,6 +34,7 @@ Facts for the graph (one per line): `- Decision: …`, `- Hypothesis: …`, `- A
 ## Using it (Claude Code CLI or the Code tab of Claude Desktop, with this folder open)
 - Ask questions in natural language (the `/kb` skill answers citing file/page).
 - `/kb update` after adding/changing files (curator), `/kb status`, `/kb stale`, `/kb new-note "<title>"`.
+- OneDrive/Teams: `uv run scripts/kb-engine/kb.py audit` (or the central `kb.py audit`) lists the files missing or different on your machine compared with the curator's last update; `--quick` checks only existence and size.
 - `/kb-setup review` for improvements, `/kb-setup eval` to measure tokens/time/quality, `/kb-setup upgrade` when the engine changes.
 
 ## Requirements and installation

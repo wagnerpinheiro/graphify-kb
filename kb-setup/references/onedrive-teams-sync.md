@@ -272,6 +272,8 @@ Steps:
     Verify: `find . -name '*-<COMPUTERNAME>*'` (or PowerShell `Get-ChildItem -Recurse -Filter "*-$env:COMPUTERNAME*"`) returns nothing after setup.
 14. **Change detection by content hash, not mtime.** Configure/confirm the tool uses hashes.
     Verify: re-running the tool without content changes reports zero changed files.
+14b. **Verify replication with `KB audit`.** After the curator's `KB update`/`KB unlock` (or `KB inventory`), `kb/inventory.json` lists path, size and sha256 of every needed file. On each teammate's machine, `KB audit --quick` (existence and size, no download) and then `KB audit` (sha256; downloads online-only files) report MISSING / DIFFERENT / EXTRA files and the probable OneDrive cause. The engine also warns `WILL NOT SYNC (OneDrive)` for invalid names, paths over 400 characters and case-only collisions, and its curator lock is `kb/curator-lock.json` because `.lock` never syncs.
+    Verify: `KB audit` prints `0 missing · 0 different` and exits 0 on every machine.
 15. **Know how to undo.** Shortcut: OneDrive web > My files > Remove shortcut (never delete the folder itself; on Windows collapse before deleting from nav pane; close files first). Sync: OneDrive Settings > Account > Stop sync (local copies remain).
     Verify: user can point to where they would do it; after removal, the folder disappears locally but remains in Teams.
 

@@ -156,7 +156,7 @@ Os comandos usam `REPO` como o caminho do clone. Ajuste a variável se clonar em
 
    ```bash
    graphify --version                                   # graphify 0.9.76
-   uv run ~/.claude/skills/kb-setup/scripts/kb.py --version   # kb.py engine 2.1.0 · kb-setup 2.1.1 (central)
+   uv run ~/.claude/skills/kb-setup/scripts/kb.py --version   # kb.py engine 2.2.0 · kb-setup 2.2.0 (central)
    uv run ~/.claude/skills/kb-setup/scripts/kb.py --help
    ```
 
@@ -215,13 +215,14 @@ Os comandos usam `REPO` como o caminho do clone. Ajuste a variável se clonar em
    │   ├── config.yaml          engine_version, kb_setup_version, ontologia, fontes, graphify.version/source/scope
    │   ├── SETUP.md             decisões, autorizações, versão e origem do graphify
    │   ├── IMPROVEMENTS.md      backlog de melhorias
+   │   ├── inventory.json       OneDrive/both: caminho, tamanho e sha256 de cada arquivo necessário (lido pelo `audit`)
    │   └── ontology/ mappings/ queries/ evals/ wiki/
    ├── .claude/skills/kb/       skill /kb do workspace (+ task skills aprovadas)
    ├── scripts/kb-engine/       cópia opcional do engine para quem não tem a kb-setup (ENGINE.json + arquivos texto)
    ├── CLAUDE.md                regras da KB e de coexistência com o graphify
    ├── README.md                método do workspace
    ├── .graphifyignore          exclui kb/, .claude/ e scripts/kb-engine/ do graphify
-   ├── .gitignore               bloco kb-setup (binários, kb/.lock, graphify-out/)
+   ├── .gitignore               bloco kb-setup (binários, kb/curator-lock.json, graphify-out/)
    └── graphify-out/            graph.json, GRAPH_REPORT.md, graph.html (fora do git)
    ```
 
@@ -233,6 +234,8 @@ Os comandos usam `REPO` como o caminho do clone. Ajuste a variável se clonar em
    - Liberar um documento de `raw/` para o graphify: registre a autorização em `kb/SETUP.md`, tire a linha dele de
      `raw/.graphifyignore` e rode `/kb update` (ou `/kb-setup graphify`).
    - Exploração (temas, comunidades, caminhos entre conceitos) ou código: `/graphify query "..."`.
+   - OneDrive/Teams: `kb.py audit` mostra se a sua cópia tem todos os arquivos do último update do curador (MISSING,
+     DIFFERENT, EXTRA); o `/kb` roda `audit --quick` uma vez por sessão e avisa quando a resposta pode estar incompleta.
 
 ## Outros modos
 
@@ -243,7 +246,7 @@ Os comandos usam `REPO` como o caminho do clone. Ajuste a variável se clonar em
 | `upgrade` | a kb-setup, o engine ou o graphify do fork mudou de versão: changelog, migração, rebuild e atualização da cópia do engine | [`references/migration.md`](references/migration.md) |
 | `graphify` | reinstalar, conferir versão, mudar escopo ou reconstruir o graphify | [`references/graphify.md`](references/graphify.md) |
 | `eval` | tokens, tempo e qualidade: sem KB × só graphify × KB + graphify | [`references/evals.md`](references/evals.md) |
-| `status` | saúde do engine, das versões, da cópia do engine, das políticas e do graphify | [`SKILL.md`](SKILL.md) |
+| `status` | saúde do engine, das versões, da cópia do engine, da cópia local (`audit --quick`), das políticas e do graphify | [`SKILL.md`](SKILL.md) |
 | `review` | analisar o uso e aplicar melhorias aprovadas do backlog | [`references/improvements.md`](references/improvements.md) |
 | `preset` | extrair um preset genérico de um workspace | [`references/presets.md`](references/presets.md) |
 
@@ -319,6 +322,12 @@ quem abre a pasta sem a kb-setup (um colega via OneDrive, por exemplo) ainda con
 - **A versão do graphify diverge da registrada em `kb/SETUP.md` / `kb/config.yaml`:** confira `graphify --version`
   e a origem em `uv-receipt.toml`. Se ele veio do PyPI, reinstale do fork (`uv tool install --force -e "$REPO"`).
   Se o fork avançou de versão, rode `/kb-setup upgrade` no workspace antes de reconstruir o grafo.
+- **Arquivos faltando no OneDrive** (as respostas de um colega não trazem documentos que o curador tem): rode
+  `kb.py audit --quick` e depois `kb.py audit` (sha256; baixa os arquivos só online). MISSING com motivo é um nome
+  que o OneDrive não sincroniza (caractere inválido, nome reservado, caminho com mais de 400 caracteres, colisão só
+  de maiúsculas/minúsculas): o curador renomeia (o update já avisou `WILL NOT SYNC`) e roda `/kb update`. MISSING
+  sem motivo ou DIFFERENT: espere o ícone do OneDrive mostrar "atualizado" e marque a pasta "Sempre manter neste
+  dispositivo"; se continuar, o admin pode bloquear o tipo de arquivo. EXTRA: arquivos novos que o curador ainda não processou.
 - **Cópias `SKILL.md.bak` em `~/.claude/skills/graphify`:** qualquer comando do graphify atualiza cópias antigas da
   skill global e guarda a anterior como `.bak`. Para desligar, use `GRAPHIFY_NO_AUTO_REFRESH=1`.
 

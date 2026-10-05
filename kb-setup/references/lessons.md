@@ -294,7 +294,7 @@ full prefix in each call (one command per call, so auto mode can approve it). Sa
 
 **L60. Use an advisory curator lock.**
 — *Why it matters:* Two people updating at once corrupt the manifest and the triples.
-— *How to apply:* Writing commands take `kb/.lock` (reentrant for the same user and machine, with `lock_timeout`). `$KB unlock --force` is for stale locks only, after confirming with the owner.
+— *How to apply:* Writing commands take `kb/curator-lock.json` (reentrant for the same user and machine, with `lock_timeout`). `$KB unlock --force` is for stale locks only, after confirming with the owner.
 
 **L61. Detect conflict copies.**
 — *Why it matters:* OneDrive creates `name-MACHINE.ext` or "(conflicted copy)" files that would be indexed as new sources.
@@ -339,10 +339,11 @@ Run these in the workspace, or in a scratchpad copy for the destructive checks. 
 | 13 | Idempotent update | `$KB update` twice | Second run prints nothing to process |
 | 14 | Touch does not reprocess | `touch raw/<file>` then `$KB update` | Nothing to process (hash unchanged) |
 | 15 | Portable copy | `rsync -a --exclude .git` to scratchpad, `$KB --root <copy> status` and `ask` | Works without git (mtime fallback for notes) |
-| 16 | Foreign lock aborts | In the copy, write a `kb/.lock` owned by another user/host, then `$KB update` | Aborts with the lock owner shown |
+| 16 | Foreign lock aborts | In the copy, write a `kb/curator-lock.json` (or a legacy `kb/.lock`) owned by another user/host, then `$KB update` | Aborts with the lock owner shown |
 | 17 | Conflict copy detected | In the copy, create `<name>-LAPTOP.md` / `(conflicted copy)`, then `$KB status` | Listed as a conflict copy and not indexed |
 | 18 | Read-only mode | `$KB --read-only update` | Refused. `--read-only ask` works |
 | 19 | One-call answer | `$KB ask "<known question>"` | Correct answer with file + page/sheet-row citation in 1 call. `NO ANSWER IN KB` for a negative question |
 | 20 | Routing with graphify-out present | Neutral subagent, CLAUDE.md loaded, `graphify-out/` present, asks a source question | Picks `/kb`. `graphify-out/` is ignored by git and by the engine |
 | 21 | graphify from the fork | `graphify --version`, `<uv tool dir>/graphifyy/uv-receipt.toml`, `ls graphify-out/graph.json` | Version equals `graphify.version` in `kb/config.yaml`, installed from the fork (not PyPI). Graph built; no unauthorized raw/ file in the detect list |
 | 22 | Engine copy (when chosen) | `$KB vendor --check`, then `uv run scripts/kb-engine/kb.py --version` and `... ask "<known question>"` | `up to date`; the copy reports `(workspace copy)` and answers like the central engine. `scripts/kb-engine/` is in the root `.graphifyignore` |
+| 23 | OneDrive inventory (OneDrive/both) | `$KB inventory`, then `$KB audit` | No `WILL NOT SYNC` line; `0 missing · 0 different`, exit 0 |

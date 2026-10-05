@@ -27,6 +27,8 @@ Rename map used by `migrate`: `scripts/core_renames.py` (classes, properties, co
   `<!-- manual -->` blocks; show a diff first).
 - Engine copy: if `scripts/kb-engine/ENGINE.json` exists, run `KB vendor --check`; when it is `outdated`, refresh it
   with `KB vendor` (from the central engine). If there is no copy, ask the engine-copy question (interview R3.3).
+- OneDrive/both: `KB inventory` is the last engine command of the upgrade (after graphify and `KB vendor`), so
+  consumers can `KB audit` their copy.
 - Never upgrade automatically; show the changelog and ask.
 
 ## Changelog
