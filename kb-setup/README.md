@@ -155,7 +155,7 @@ The commands use `REPO` for the clone path. Change the variable if you clone som
 
    ```bash
    graphify --version                                   # graphify 0.9.76
-   uv run ~/.claude/skills/kb-setup/scripts/kb.py --version   # kb.py engine 2.1.0 · kb-setup 2.1.0 (central)
+   uv run ~/.claude/skills/kb-setup/scripts/kb.py --version   # kb.py engine 2.1.0 · kb-setup 2.1.1 (central)
    uv run ~/.claude/skills/kb-setup/scripts/kb.py --help
    ```
 

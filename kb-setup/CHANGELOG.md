@@ -5,6 +5,17 @@ record both in `kb/config.yaml` (`kb_setup_version`, `engine_version`). `/kb-set
 version between the workspace's and the installed one and applies the listed migration steps, always with
 confirmation.
 
+## 2.1.1 (2026-10-05) · engine 2.1.0
+Autonomous setup mode for init. Skill files only; the engine is unchanged.
+- init asks first: **autonomous** (recommended) or **guided**. Autonomous takes the recommended default at every
+  decision (`references/interview.md` → "Autonomous mode"), approves the ontology/mappings/rules and task skills
+  checkpoints itself, records them in `kb/SETUP.md` and lists them in the closing summary. It never assumes
+  per-document LLM authorizations, policy/`uv`/API-key blockers, manual OneDrive/Teams steps or overwriting user
+  content. Guided keeps the interview rounds and approval checkpoints. Adopt is unchanged.
+- `kb/SETUP.md` template: `Setup mode: autonomous | guided`; assumed decisions are marked "(default — autonomous)".
+- **Migration from 2.1.0:** set `kb_setup_version: "2.1.1"` in `kb/config.yaml` and add
+  `Setup mode: guided` below the "Created by…" line of `kb/SETUP.md`. Nothing else to regenerate.
+
 ## 2.1.0 (2026-10-05) · engine 2.1.0
 - **Optional engine copy in the workspace** (`scripts/kb-engine/`): `KB vendor` copies `kb.py`, `kb.py.lock`,
   `core_renames.py`, `VERSION`, the core ontology/shapes, the core queries and `prompts.md`, and writes
@@ -23,8 +34,6 @@ confirmation.
   kb-setup with `npx skills add wagnerpinheiro/graphify-kb --skill kb-setup -g -a claude-code`. The workspace README
   gets a "Requirements and installation" section per OS (uv, Claude Code, Node.js, kb-setup, graphify). Generated
   files are stamped with the kb-setup version instead of the engine version.
-- init asks first: autonomous (recommended defaults, checkpoints auto-approved and listed at the end) or guided
-  (interview rounds and approval checkpoints). `kb/SETUP.md` records `Setup mode:` and marks assumed decisions.
 - Interview Round 3 asks whether to copy the engine into the workspace (recommended for OneDrive/both or read-only
   consumers). The old R3.4 (note conventions) is folded into R2.4.
 - **Migration from 2.0.x:**
