@@ -1,0 +1,66 @@
+# Preset rfi-proposal — `topics:` block for kb/config.yaml (deadline/condition topics).
+#
+# What a topic does: every deadline sentence whose accent-free lowercase text matches `pattern` (Python regex,
+# re.search) converges on one entity id:topic/<key> (class kb:Deadline). The same condition stated in different
+# documents (e.g. proposal validity in the request document vs. in the tender notice) then shows up as a conflict,
+# and precedence picks the winner. Without topics, deadlines are one entity per occurrence and never collide.
+#
+# Engine behavior to keep in mind (check `KB --version` / references/migration.md changelog):
+#   - topics are only tested on sentences the engine already detected as deadlines: a deadline keyword
+#     (en/pt/es: deadline, within, until, validity, term, prazo, validade, vigencia, plazo, hasta...) AND a date
+#     or a duration. Engine 2.0.0 recognizes durations only with Portuguese units (dias/horas/meses/semanas);
+#     in English/Spanish documents a topic fires only on sentences with an explicit date until the engine's
+#     duration pattern is extended. kb-setup must verify this on the workspace before relying on a topic.
+#   - patterns run over folded text: lowercase, accents removed (ç->c, ã->a, ñ->n). Write patterns without accents.
+#
+# How kb-setup uses this file at init:
+#   1. Copy only the topics that match the material (a subagent greps the converted .md for each pattern and
+#      returns counts per document and page — never client excerpts to the main context).
+#   2. Keep patterns specific: a pattern that matches unrelated deadlines merges different conditions into one
+#      entity and creates false conflicts. Prefer "<noun>.{0,N}<noun>" in both orders over single words.
+#   3. Add workspace-specific topics found by the subagent (any condition stated in 2+ documents with a deadline:
+#      e.g. implementation duration, response time to a request, notice period for termination).
+#   4. Present the final list for approval (checkpoint) together with the ontology and mappings.
+
+topics:
+  proposal-validity:
+    label: Proposal validity
+    pattern: "validity.{0,60}(proposal|offer|bid)|(proposal|offer|bid).{0,60}validity|valid for.{0,30}days\
+      |validade.{0,60}propost|propost.{0,60}validade\
+      |validez.{0,60}(propuesta|oferta)|(propuesta|oferta).{0,60}validez"
+
+  contract-term:
+    label: Contract term
+    pattern: "term of (the )?(contract|agreement)|(contract|agreement) (term|duration|period)|duration of (the )?(contract|agreement)\
+      |vigencia.{0,40}contrat|contrat.{0,40}vigencia\
+      |duracion.{0,30}contrat|plazo.{0,20}del contrato"
+
+  warranty-after-go-live:
+    label: Warranty after go-live
+    pattern: "warrant(y|ies).{0,40}(go-?live|post|after|implementation|deployment|acceptance)\
+      |garantia.{0,40}(pos|implanta|entrada em producao)\
+      |garantia.{0,40}(post|implementa|puesta en (marcha|produccion))"
+
+  assisted-operation:
+    label: Assisted operation / hypercare
+    pattern: "hyper-?care|assisted operation|post-go-?live support|stabili[sz]ation period\
+      |operacao assistida\
+      |operacion asistida|periodo de estabilizacion"
+
+  transition-assistance:
+    label: Transition assistance (exit)
+    pattern: "(exit|transition|termination|handover|hand-over) assistance|assistance.{0,40}(transition|exit)\
+      |assistencia.{0,40}transicao\
+      |asistencia.{0,40}transicion"
+
+  clarification-questions:
+    label: Clarification questions
+    pattern: "clarification|questions? (and answers|period|deadline|submission)|\\bq&a\\b\
+      |esclarecimento|duvidas\
+      |aclaracion|consultas de los oferentes|preguntas de los (oferentes|proponentes)"
+
+  payment-term:
+    label: Payment term
+    pattern: "payment.{0,40}(term|days|within|net)|(term|days).{0,30}payment\
+      |prazo.{0,30}pagamento|pagamento.{0,40}(dias|prazo)\
+      |plazo.{0,30}pago|pago.{0,40}(dias|plazo)"

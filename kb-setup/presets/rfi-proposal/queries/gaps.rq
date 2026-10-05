@@ -1,0 +1,40 @@
+# Gaps that need action from the proposal team. Preset rfi-proposal.
+#  - mandatory compliance items still without an answer ({{PREFIX}}:compliance);
+#  - RACI activities without a responsible (R) or without an accountable (A);
+#  - transition checklist items without status;
+#  - unresolved / divergent references (attachments missing from raw/ or cited with a wrong number).
+# The "mandatory" regex matches common eligibility wording in en/pt/es over the cell text (case-insensitive);
+# kb-setup replaces it with the exact values found in the eligibility column when they differ.
+PREFIX {{PREFIX}}: <{{NAMESPACE}}>
+PREFIX kb: <http://kb.local/core#>
+PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
+
+SELECT DISTINCT ?kind ?item ?detail WHERE {
+  {
+    ?item a {{PREFIX}}:ComplianceItem ; {{PREFIX}}:eligibility ?el .
+    FILTER(REGEX(?el, "mandatory|must|required|essential|imprescind|obrigat|indispens|obligatori|esencial", "i"))
+    FILTER NOT EXISTS { ?item {{PREFIX}}:compliance ?c }
+    BIND("mandatory compliance item without answer" AS ?kind)
+    OPTIONAL { ?item kb:excerpt ?t } BIND(SUBSTR(COALESCE(?t, ""), 1, 80) AS ?detail)
+  } UNION {
+    ?item a kb:Activity .
+    FILTER NOT EXISTS { ?item kb:responsible ?r }
+    BIND("activity without responsible (R)" AS ?kind)
+    OPTIONAL { ?item rdfs:label ?l } BIND(COALESCE(?l, "") AS ?detail)
+  } UNION {
+    ?item a kb:Activity .
+    FILTER NOT EXISTS { ?item kb:accountable ?a }
+    BIND("activity without accountable (A)" AS ?kind)
+    OPTIONAL { ?item rdfs:label ?l2 } BIND(COALESCE(?l2, "") AS ?detail)
+  } UNION {
+    ?item a {{PREFIX}}:TransitionChecklistItem .
+    FILTER NOT EXISTS { ?item {{PREFIX}}:status ?st }
+    BIND("transition checklist item without status" AS ?kind)
+    OPTIONAL { ?item kb:excerpt ?t2 } BIND(SUBSTR(COALESCE(?t2, ""), 1, 80) AS ?detail)
+  } UNION {
+    ?item kb:referenceText ?ref .
+    BIND("unresolved reference (missing from raw/ or divergent numbering)" AS ?kind)
+    BIND(?ref AS ?detail)
+  }
+}
+ORDER BY ?kind ?item

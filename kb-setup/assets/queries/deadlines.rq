@@ -1,0 +1,20 @@
+# Milestones, deadlines and topic deadlines (dates and durations) with source and page.
+PREFIX kb: <http://kb.local/core#>
+PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
+PREFIX dcterms: <http://purl.org/dc/terms/>
+
+SELECT DISTINCT ?kind ?date ?duration ?description ?source ?page WHERE {
+  GRAPH ?g {
+    ?x a ?cls ; kb:definedIn ?doc .
+    VALUES ?cls { kb:Milestone kb:Deadline }
+    OPTIONAL { ?x kb:date ?date }
+    OPTIONAL { ?x kb:duration ?duration }
+    OPTIONAL { ?x rdfs:label ?l }
+    OPTIONAL { ?x kb:excerpt ?t }
+    OPTIONAL { ?x kb:page ?page }
+  }
+  ?doc dcterms:source ?source .
+  BIND(STRAFTER(STR(?cls), "#") AS ?kind)
+  BIND(SUBSTR(COALESCE(?l, ?t, ""), 1, 120) AS ?description)
+}
+ORDER BY ?source ?page ?date

@@ -1,0 +1,18 @@
+# All program methodology phases (and design sub-phases) in order, with source and page. Preset erp-rollout-program.
+PREFIX {{PREFIX}}: <{{NAMESPACE}}>
+PREFIX kb: <http://kb.local/core#>
+PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
+PREFIX dcterms: <http://purl.org/dc/terms/>
+
+SELECT DISTINCT ?kind ?label ?order ?page ?source WHERE {
+  GRAPH ?g {
+    ?phase a ?cls ; kb:definedIn ?doc .
+    VALUES ?cls { {{PREFIX}}:ProgramPhase {{PREFIX}}:DesignSubPhase }
+    OPTIONAL { ?phase rdfs:label ?label }
+    OPTIONAL { ?phase kb:order ?order }
+    OPTIONAL { ?phase kb:page ?page }
+  }
+  ?doc dcterms:source ?source .
+  BIND(STRAFTER(STR(?cls), "#") AS ?kind)
+}
+ORDER BY ?order ?source ?page

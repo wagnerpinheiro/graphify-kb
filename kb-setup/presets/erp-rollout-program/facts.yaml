@@ -1,0 +1,78 @@
+# Preset erp-rollout-program — `facts:` block for kb/config.yaml (quantitative facts).
+#
+# Why: quantitative facts stated in more than one status report (business case value, sub-program count, apps
+# rationalized...) are the most dangerous class of divergence in a long-running program. Each rule turns
+# "concept + value" into id:topic/<key> (class kb:Fact): different values across documents become conflicts
+# resolved by precedence, and two values inside the same document show up in the internal-inconsistencies query.
+#
+# Rule syntax (engine) and MANDATORY testing before enabling a rule: same as the core kb-setup guidance
+# (references/evals.md / init step 6.4) — a subagent tests every rule against the workspace's converted .md
+# (authorized documents only) and reports matches, captured values and false positives (counts/pages only).
+#
+# Lessons from the source engagement (dense slide decks, engine 2.0.0):
+#   - `value` only ever uses capture group 1 (confirmed in kb.py `fact_value(vm.group(1), ...)`). A rule meant to
+#     capture a "from X to Y" range cannot report both numbers — anchor the value regex on the ONE number you
+#     actually want (here, the target figure), not on the whole range.
+#   - keep `before`/`after` tight (a few characters) whenever the number precedes the context phrase, or sits in
+#     a dense slide deck with other digits (slide/page numbers, numbered-circle diagram labels) nearby — the
+#     default window (50 chars before / 250 after) picked up unrelated numbers from neighboring bullet points in
+#     this engagement for two rules until the window was narrowed and the context anchored on an exact phrase.
+#   - a `facts:` rule assumes the quantity is ONE program-wide number. A metric that is inherently per sub-unit
+#     (e.g. headcount per sub-program: 6, 9, 75...) will conflate unrelated figures into one misleading topic;
+#     drop it from `facts:` and model it later as a property on the relevant entity instances instead (requires
+#     LLM-authorized entity extraction, not a global regex).
+#   - commodity/business-line-specific growth-rate facts from the source engagement (tied to literal commodity
+#     names) were dropped from this generic preset as not transferable; if the adopting program tracks growth by
+#     business line, write a new rule with that program's own segment names.
+#   - avoid naming a fact `<...>-pct`: a slug ending in "-pct" false-triggers the engine's OneDrive
+#     conflict-copy detector (`CONFLICT_RE` matches a trailing "-PC"); use `-percent` instead (logged upstream in
+#     the source engagement's kb/IMPROVEMENTS.md).
+
+facts:
+  business-case-value:
+    label: "Business case value (currency/year)"
+    # anchor on the headline phrase: a bare currency pattern also matches per-line-item sub-figures on the same
+    # slide (sub-contributions that sum to the headline) and gets merged into this one topic.
+    context: 'plan for [a-z]?\$ ?[0-9]'
+    value: '([0-9]+(?:\.[0-9]+)?)'
+    before: 0
+    after: 20
+    normalize: number
+
+  subprograms-count:
+    label: "Number of sub-programs"
+    # anchor on the one sentence that states the count; a bare "sub-program(s)" context also matches unrelated
+    # numbered-circle diagram labels near other slides' governance/org-chart mentions of "sub-program".
+    context: 'organized in [0-9]+ sub-?programs?'
+    value: '([0-9]+)'
+    before: 0
+    after: 5
+    normalize: number
+
+  regional-apps-reduction:
+    label: "Target application count (rationalization)"
+    context: 'from [0-9]+ to [0-9]+ (regional )?apps'
+    value: 'to ([0-9]+) (regional )?apps'
+    normalize: number
+
+  sprint-duration-weeks:
+    label: "Sprint duration (weeks)"
+    context: '[0-9]+[\s-]?weeks? sprints?|sprints? of [0-9]+[\s-]?weeks?'
+    value: '([0-9]+)'
+    before: 5
+    after: 20
+    normalize: number
+
+  satellite-apps-total:
+    label: "Satellite applications tracked (count)"
+    context: '[0-9]+\s*(?:applications|apps)\b'
+    value: '([0-9]+)'
+    before: 5
+    normalize: number
+
+  rpa-count-legacy:
+    label: "RPAs on legacy systems (count)"
+    context: '[0-9]+\s*rpas?\b'
+    value: '([0-9]+)'
+    before: 5
+    normalize: number

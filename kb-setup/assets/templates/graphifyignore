@@ -1,0 +1,3 @@
+# graphify scope for this folder (gitignore syntax). List every file NOT authorized for graphify extraction.
+# Authorization is per document and recorded in kb/SETUP.md. Do not remove lines without a new authorization.
+# Default: every file and folder in raw/ is listed here (code, docs/ and wiki/ are always in graphify's scope).

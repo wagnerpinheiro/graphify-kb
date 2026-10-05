@@ -1,0 +1,97 @@
+# Preset rfi-proposal — `facts:` block for kb/config.yaml (quantitative facts).
+#
+# Why: quantitative facts stated in more than one document (number of environments, test levels, contract
+# horizon...) are the most dangerous class of divergence in a proposal. Each rule turns "concept + value" into
+# id:topic/<key> (class kb:Fact): different values across documents become conflicts resolved by precedence,
+# and two values inside the same document show up in the internal-inconsistencies query.
+#
+# Rule syntax (engine):
+#   context   regex for the concept (re.finditer over folded text: lowercase, no accents, dashes kept, line breaks
+#             kept so (?m)^ works per line)
+#   value     regex with ONE capture group, searched in a window [match.start - before, match.end + after]
+#   before / after   window size in characters (defaults 50 / 250)
+#   normalize count          number of items in the captured list (split on commas and conjunctions)
+#             count_distinct distinct items across the whole document (one value per document)
+#             months         years -> months; number words -> digits
+#             number         number words -> digits
+#             acronyms       acronyms in parentheses in the capture, e.g. "(unit) ... (sit) ... (uat)" -> "UNIT, SIT, UAT",
+#                            plus any word of `extras` found in the capture
+#             (empty)        captured text as is (max 160 chars)
+#   min       for count: discard captures with fewer items (default 2)
+#   unit      appended to the value ("4 environments")
+#   extras    for acronyms: extra words to report when present
+#
+# MANDATORY before enabling a rule: kb-setup tests it by subagent against the workspace's converted .md files
+# (authorized documents only) and reports, per document: matches of `context`, captured values, normalized
+# values, and false positives — counts and page numbers only, no client excerpts in the main context.
+# Keep only rules that (a) fire in 2+ documents or twice in one document and (b) produce comparable values.
+#
+# Lessons from the first real deployment (rules were tuned to Portuguese phrasing):
+#   - count needs `min`: phrases such as "promote from development to production" are a 2-item "list" that is not
+#     an enumeration of environments; min: 2 kept them out only because the value regex required a list. Raise
+#     `min` or tighten `value` if the subagent reports such captures.
+#   - exclude look-alikes with negative lookbehind: "pre-production" must not end the environment list early
+#     ((?<!pre-)(?<!pre )production).
+#   - test levels are best compared as acronyms (UNIT/SIT/UAT) + extras (regression), not as free text: the same
+#     levels are written in many ways.
+#   - defect severity levels: count_distinct over the whole document, because levels are often defined one per
+#     line ("Critical - incident that ...") instead of in one sentence.
+#   - contract horizon: one document may say "N months" and another "N years planned"; normalize: months makes
+#     them comparable. A rule for penalty percentages was dropped: values were not comparable (different events
+#     and bases) — prefer no rule over a noisy one.
+#   - TCO horizon: the same document stated two different horizons on different pages; that was an internal
+#     inconsistency worth reporting to the proposal team.
+#
+# Engine 2.0.0 limitations to check before enabling a rule on English/Spanish text (report to the user and log in
+# kb/IMPROVEMENTS.md if they bite). Confirmed on synthetic sentences when this preset was built:
+# "development, test, staging and production" -> 3 (expected 4); "critical, high, medium and low" -> 3 (expected 4);
+# "desarrollo, pruebas y produccion" -> 2 (expected 3); "term of the contract is 5 years" -> 5 (expected 60).
+#   - count / count_distinct split items on "," and the Portuguese conjunctions "e"/"ou" only; "and", "or", "y",
+#     "o" and "/" do not split, so English/Spanish lists are under-counted;
+#   - months / number know Portuguese number words and the units meses/mes/anos/ano only; "5 years" is read as 5
+#     (not 60 months) and "five years" is not read at all. For English text use digit-only value regexes and
+#     state the unit explicitly, or extend the engine first.
+#   - count_distinct counts strings: "critical" and "critico" in a bilingual document are two items.
+
+facts:
+  number-of-environments:
+    label: Number of environments
+    context: 'environments?\b[^.;]{0,60}?\b(?:development|dev)\b|ambientes?\b[^.;]{0,60}?\bdesenvolvimento|entornos?\b[^.;]{0,60}?\bdesarrollo'
+    value: '((?:development|desenvolvimento|desarrollo)\b[^.;]{0,180}?(?<!pre-)(?<!pre )\b(?:production|producao|produccion)(?:\s*\(prd\))?)'
+    normalize: count
+    min: 2
+    unit: environments
+
+  test-levels:
+    label: Test levels
+    context: 'test(?:ing)?\s+levels?|levels?\s+of\s+test|niveis\s+(?:de\s+)?testes?|niveles\s+de\s+pruebas?|estrategia\s+(?:para|de)\s+(?:testes|pruebas)'
+    value: '(\(unit\)[^.;]{0,140}?\(uat\)(?:\s+(?:and|e|y)\s+(?:(?:testes?|pruebas?)\s+de\s+)?(?:regression|regressao|regresion)\b(?:\s+tests?)?)?)'
+    normalize: acronyms
+    extras: [regression, regressao, regresion]
+    # The extra is reported in the document's language ("+ regression" vs "+ regressao"): in a bilingual workspace
+    # this is a false divergence; keep only the extras of the language the documents share.
+
+  defect-severity-levels:
+    label: Defect severity levels
+    context: '(?m)(?:severity|priority|classification)\s+of\s+defects?|defects?\s+(?:severity|priority|classification)|(?:classificacao|prioridade|severidade|gravidade)\s+d[eo]s?\s+defeitos?|(?:severidad|prioridad|clasificacion)\s+de\s+(?:los\s+)?defectos?'
+    value: '((?:critical|high|medium|low|critic[oa]|alt[oa]|medi[oa]|baix[oa]|baj[oa])(?:\s*(?:,|/|\be\b|\bou\b|\band\b|\bor\b|\by\b|\bo\b)\s*(?:critical|high|medium|low|critic[oa]|alt[oa]|medi[oa]|baix[oa]|baj[oa])){1,3})'
+    normalize: count_distinct
+    unit: levels
+    # Documents that define one level per line: add an alternative to `context` and `value` anchored at line
+    # start, e.g. '^(?:critical|high|medium|low)(?=\s*-\s)' (test it: risk and priority tables also look like this).
+
+  contract-horizon:
+    label: Contract horizon (term)
+    context: 'term\s+of\s+the\s+(?:contract|agreement)|contract(?:ual)?\s+term|vigencia\s+d[eo]l?\s+contrato|duracion\s+del\s+contrato'
+    # Add the phrasings the subagent finds for the horizon in other documents (e.g. "each of the N years of the
+    # contract" in a pricing section), so that both sides of a potential divergence are captured.
+    value: '((?:\d+|um|dois|tres|quatro|cinco|seis|sete|oito|nove|dez)\s*(?:\([a-z]+\)\s*)?(?:meses|anos|months|years))'
+    normalize: months
+    unit: months
+
+  tco-horizon:
+    label: TCO horizon
+    context: '\btco\b|total\s+cost\s+of\s+ownership|custo\s+total\s+de\s+propriedade|costo\s+total\s+de\s+propiedad'
+    value: '\btco\s+(?:de\s+|of\s+|\()((?:\d+|um|dois|tres|quatro|cinco|seis|sete|oito|nove|dez)\s+(?:anos|years))'
+    normalize: number
+    unit: years

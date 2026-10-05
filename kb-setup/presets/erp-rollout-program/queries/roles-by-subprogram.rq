@@ -1,0 +1,19 @@
+# Stakeholder roles mapped by sub-program, with source and page. Preset erp-rollout-program.
+PREFIX {{PREFIX}}: <{{NAMESPACE}}>
+PREFIX kb: <http://kb.local/core#>
+PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
+PREFIX dcterms: <http://purl.org/dc/terms/>
+
+SELECT DISTINCT ?subprogramLabel ?roleLabel ?page ?source WHERE {
+  GRAPH ?g {
+    ?role a {{PREFIX}}:StakeholderRole ; kb:definedIn ?doc .
+    OPTIONAL { ?role rdfs:label ?roleLabel }
+    OPTIONAL { ?role kb:page ?page }
+    OPTIONAL {
+      ?role {{PREFIX}}:inSubProgram ?subprogram .
+      OPTIONAL { ?subprogram rdfs:label ?subprogramLabel }
+    }
+  }
+  ?doc dcterms:source ?source .
+}
+ORDER BY ?subprogramLabel ?roleLabel

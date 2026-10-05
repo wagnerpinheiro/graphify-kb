@@ -1,0 +1,51 @@
+# kb-setup core SHACL shapes: every statement has a source and a location; notes have review metadata.
+@prefix kb:      <http://kb.local/core#> .
+@prefix sh:      <http://www.w3.org/ns/shacl#> .
+@prefix rdfs:    <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix xsd:     <http://www.w3.org/2001/XMLSchema#> .
+@prefix dcterms: <http://purl.org/dc/terms/> .
+@prefix prov:    <http://www.w3.org/ns/prov#> .
+@prefix skos:    <http://www.w3.org/2004/02/skos/core#> .
+
+kb:StatementShape a sh:NodeShape ;
+    sh:targetClass kb:Section, kb:Figure, kb:Fact, kb:Deadline, kb:Milestone, kb:Term, kb:Decision, kb:Hypothesis,
+                   kb:Activity, kb:Role, kb:Deliverable, kb:RACIAssignment ;
+    sh:property [ sh:path kb:definedIn ; sh:minCount 1 ; sh:class kb:Source ;
+                  sh:message "Statement without source (kb:definedIn -> Document/WikiNote)."@en ] ;
+    sh:or ( [ sh:path kb:page ; sh:minCount 1 ] [ sh:path kb:originalId ; sh:minCount 1 ]
+            [ sh:path kb:row ; sh:minCount 1 ] [ sh:path kb:sheet ; sh:minCount 1 ]
+            [ sh:path kb:inSection ; sh:minCount 1 ] [ sh:path kb:order ; sh:minCount 1 ] ) ;
+    sh:message "Statement without location (page, original id, row/sheet, section or order)."@en .
+
+kb:PageShape a sh:NodeShape ;
+    sh:targetSubjectsOf kb:page ;
+    sh:property [ sh:path kb:page ; sh:datatype xsd:integer ; sh:minInclusive 1 ] .
+
+kb:DocumentShape a sh:NodeShape ;
+    sh:targetClass kb:Document ;
+    sh:property [ sh:path dcterms:source ; sh:minCount 1 ; sh:maxCount 1 ; sh:datatype xsd:string ] ;
+    sh:property [ sh:path kb:layer ; sh:minCount 1 ; sh:in ( "raw" ) ] .
+
+kb:WikiNoteShape a sh:NodeShape ;
+    sh:targetClass kb:WikiNote ;
+    sh:property [ sh:path dcterms:modified ; sh:minCount 1 ; sh:datatype xsd:date ;
+                  sh:message "Note without review date (last_reviewed)."@en ] ;
+    sh:property [ sh:path prov:wasAttributedTo ; sh:minCount 1 ;
+                  sh:message "Note without reviewer (reviewed_by)."@en ] ;
+    sh:property [ sh:path kb:layer ; sh:minCount 1 ; sh:in ( "wiki" ) ] ;
+    sh:property [ sh:path kb:noteType ; sh:maxCount 1 ; sh:in ( "fleeting" "literature" "permanent" ) ] .
+
+kb:RACIAssignmentShape a sh:NodeShape ;
+    sh:targetClass kb:RACIAssignment ;
+    sh:property [ sh:path kb:activity ; sh:minCount 1 ; sh:maxCount 1 ] ;
+    sh:property [ sh:path kb:role ; sh:minCount 1 ; sh:maxCount 1 ; sh:class kb:Role ] ;
+    sh:property [ sh:path kb:raciCode ; sh:minCount 1 ; sh:pattern "^[RACI](/?,?[RACI])*$" ] .
+
+kb:MilestoneShape a sh:NodeShape ;
+    sh:targetClass kb:Milestone ;
+    sh:property [ sh:path kb:date ; sh:minCount 1 ] ;
+    sh:property [ sh:path rdfs:label ; sh:minCount 1 ] .
+
+kb:TermShape a sh:NodeShape ;
+    sh:targetClass kb:Term ;
+    sh:property [ sh:path skos:prefLabel ; sh:minCount 1 ] .

@@ -1,0 +1,17 @@
+# Conflicts: (subject, property) with different value sets between sources (named graphs).
+# The winner of each conflict comes from precedence.rq (or `kb.py show <entity>`).
+PREFIX kb: <http://kb.local/core#>
+PREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>
+PREFIX prov: <http://www.w3.org/ns/prov#>
+
+SELECT ?s ?p (COUNT(DISTINCT ?g) AS ?sources)
+       (GROUP_CONCAT(DISTINCT CONCAT(SUBSTR(STR(?o), 1, 60), " @", STRAFTER(STR(?g), "urn:kb:")); separator=" || ") AS ?values)
+WHERE {
+  GRAPH ?g { ?s ?p ?o }
+  FILTER(?g != <urn:kb:ontology> && !STRSTARTS(STR(?s), "urn:kb:"))
+  FILTER(?p NOT IN (rdf:type, kb:definedIn, kb:page, kb:row, kb:sheet, kb:inSection, kb:parentSection,
+                    prov:wasDerivedFrom, kb:originalId, kb:excerpt))
+  FILTER EXISTS { GRAPH ?gx { ?s ?p ?ox } FILTER(?gx != ?g) FILTER NOT EXISTS { GRAPH ?gx { ?s ?p ?o } } }
+}
+GROUP BY ?s ?p
+ORDER BY ?s ?p

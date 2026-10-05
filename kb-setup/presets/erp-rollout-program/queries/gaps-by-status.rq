@@ -1,0 +1,21 @@
+# GAPs by status (ready/ongoing/critical/pending governance review, etc.), with sub-program, source and page.
+# Cross-check with the core conflicts.rq when two status reports disagree on the same GAP. Preset erp-rollout-program.
+PREFIX {{PREFIX}}: <{{NAMESPACE}}>
+PREFIX kb: <http://kb.local/core#>
+PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
+PREFIX dcterms: <http://purl.org/dc/terms/>
+
+SELECT DISTINCT ?label ?status ?subprogramLabel ?page ?source WHERE {
+  GRAPH ?g {
+    ?gap a {{PREFIX}}:GAP ; kb:definedIn ?doc .
+    OPTIONAL { ?gap rdfs:label ?label }
+    OPTIONAL { ?gap {{PREFIX}}:status ?status }
+    OPTIONAL { ?gap kb:page ?page }
+    OPTIONAL {
+      ?gap {{PREFIX}}:inSubProgram ?subprogram .
+      OPTIONAL { ?subprogram rdfs:label ?subprogramLabel }
+    }
+  }
+  ?doc dcterms:source ?source .
+}
+ORDER BY ?status ?source ?page

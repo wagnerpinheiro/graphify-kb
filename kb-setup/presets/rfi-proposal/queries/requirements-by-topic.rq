@@ -1,0 +1,45 @@
+# Thematic survey in ONE call: requirements of the compliance matrix + document sections + quantitative facts.
+# Preset rfi-proposal. kb-setup fills the UPPERCASE init placeholders (domain prefix/namespace); the lowercase
+# {{workstream}} and {{section}} stay as runtime parameters (case-insensitive regex):
+#   workstream -> matched against workstream, grouping and macro requirement of each requirement
+#                 (e.g. "infrastructure|devops", "seguranca|security")
+#   section    -> matched against section titles and fact labels (e.g. "environment|ambiente|observab")
+# Usage: KB query requirements-by-topic --param workstream="infra" --param section="environment|ambiente"
+# Use "." to match everything on one side. kb-setup lists the distinct workstream values found in the matrix here
+# (generic names only) so users know what to pass.
+# No RDFS inference in pyoxigraph: requirement classes are listed explicitly.
+# If raw/ holds byte-identical copies of a document, exclude the copy with FILTER(!CONTAINS(?source, "<path>")).
+PREFIX {{PREFIX}}: <{{NAMESPACE}}>
+PREFIX kb: <http://kb.local/core#>
+PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
+PREFIX dcterms: <http://purl.org/dc/terms/>
+
+SELECT DISTINCT ?kind ?id ?title ?eligibility ?source ?location WHERE {
+  {
+    VALUES ?cls { {{PREFIX}}:ComplianceItem {{PREFIX}}:Requirement {{PREFIX}}:FunctionalRequirement
+                  {{PREFIX}}:NonFunctionalRequirement {{PREFIX}}:SecurityRequirement {{PREFIX}}:QualityRequirement }
+    ?x a ?cls ; kb:definedIn ?doc .
+    OPTIONAL { ?x kb:originalId ?oid }
+    OPTIONAL { ?x {{PREFIX}}:workstream ?ws } OPTIONAL { ?x {{PREFIX}}:grouping ?gr } OPTIONAL { ?x {{PREFIX}}:macroRequirement ?mr }
+    OPTIONAL { ?x kb:excerpt ?t } OPTIONAL { ?x {{PREFIX}}:eligibility ?eligibility }
+    OPTIONAL { ?x kb:sheet ?sh } OPTIONAL { ?x kb:row ?ln } OPTIONAL { ?x kb:page ?pg }
+    FILTER(REGEX(CONCAT(COALESCE(?ws, ""), " | ", COALESCE(?gr, ""), " | ", COALESCE(?mr, "")), "{{workstream}}", "i"))
+    BIND("Requirement" AS ?kind)
+    BIND(COALESCE(?oid, "") AS ?id)
+    BIND(CONCAT(COALESCE(?mr, ""), ": ", SUBSTR(COALESCE(?t, ""), 1, 90)) AS ?title)
+    BIND(IF(BOUND(?ln), CONCAT("sheet ", COALESCE(?sh, "?"), ", row ", STR(?ln)), CONCAT("p.", STR(COALESCE(?pg, "")))) AS ?location)
+  } UNION {
+    ?x a kb:Section ; rdfs:label ?title ; kb:definedIn ?doc .
+    FILTER(REGEX(?title, "{{section}}", "i"))
+    OPTIONAL { ?x kb:number ?num } OPTIONAL { ?x kb:page ?pg2 }
+    BIND("Section" AS ?kind) BIND(COALESCE(?num, "") AS ?id)
+    BIND(CONCAT("p.", STR(COALESCE(?pg2, ""))) AS ?location)
+  } UNION {
+    ?x a kb:Fact ; rdfs:label ?title ; kb:value ?v ; kb:definedIn ?doc .
+    FILTER(REGEX(?title, "{{section}}", "i"))
+    OPTIONAL { ?x kb:page ?pg3 }
+    BIND("Fact" AS ?kind) BIND(?v AS ?id) BIND(CONCAT("p.", STR(COALESCE(?pg3, ""))) AS ?location)
+  }
+  ?doc dcterms:source ?source .
+}
+ORDER BY ?kind ?source ?id

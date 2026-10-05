@@ -1,0 +1,101 @@
+{
+ "skill_name": "kb-setup",
+ "evals": [
+  {
+   "id": 1,
+   "name": "empty-workspace-zettelkasten",
+   "prompt": "I'm starting a brand-new workspace for a research project on battery recycling regulations in the EU. The folder is empty: {WS}. Please set it up so my team can keep notes now and add PDFs/spreadsheets later, and so Claude can answer questions with sources. We version with git. Content language: English. (Test harness: you cannot ask me questions — when you would ask, pick the recommended default and list the question and your choice in {OUT}/questions.md.)",
+   "expected_output": "Zettelkasten skeleton (raw/ wiki/ kb/ docs/), kb/config.yaml with engine_version, README explaining the method, CLAUDE.md with KB rules, .claude/skills/kb/SKILL.md generated, 3 example notes + a guided first permanent note with header (type, last_reviewed, reviewed_by), kb update runs and ask finds the note, .gitignore block, kb/SETUP.md with decisions; graphify installed from the graphify-kb fork at the expected version and a graph built over code + docs/ + wiki/ (graphify-out/graph.json), version and source recorded in kb/config.yaml and kb/SETUP.md; no domain ontology forced.",
+   "files": [],
+   "assertions": [
+    "Zettelkasten folders raw/ wiki/ kb/ docs/ exist",
+    "kb/config.yaml records engine_version 2.x",
+    "README explains folders, note header and precedence",
+    "CLAUDE.md has KB rules (consult /kb, precedence, never index docs/, subagents)",
+    "Workspace /kb skill generated (name: kb, uses central engine)",
+    "A guided first permanent note exists with full header",
+    "First note encodes the deadline with graph conventions",
+    "Note file names follow YYYY-MM-DD-slug.md",
+    "Example notes (fleeting/literature/permanent) clearly marked",
+    "Engine validate passes in the workspace",
+    "kb ask finds the first note (KB answers from notes)",
+    ".gitignore keeps binaries out and ignores kb/.lock and graphify-out",
+    "kb/SETUP.md records decisions",
+    "Questions the user would have been asked are listed",
+    "graphify from the fork installed at the expected version (graphify --version == graphify.version in kb/config.yaml)",
+    "graphify graph built (graphify-out/graph.json exists) even though the workspace is empty",
+    "kb/SETUP.md records graphify version, source and scope"
+   ]
+  },
+  {
+   "id": 2,
+   "name": "rfp-workspace-full-init",
+   "prompt": "This folder has the documents of an RFP we must answer: {WS} (PDFs, two spreadsheets, a DOCX and a zip, in raw/rfp/). Set up the knowledge base for the bid team. We share the folder through a Teams channel synced with OneDrive. Image descriptions are allowed for all documents; do NOT let graphify read raw/ documents, but configure it for the workspace. (Test harness: you cannot ask me questions — when you would ask, pick the recommended default and list the question and your choice in {OUT}/questions.md; treat ontology/mapping/rules checkpoints as approved after you write the proposal to {OUT}/checkpoint.md.)",
+   "expected_output": "OneDrive/Teams guidance summary, converted .md beside binaries, zip extracted, duplicate PDF flagged, image described via subagent, domain ontology from the rfi-proposal preset with placeholders filled, mappings for both spreadsheets (requirements + RACI) extracted, topics/facts rules that surface proposal validity 60 (RFP) vs 90 (contract terms) and environments 4 vs 3, validate ok, /kb skill + CLAUDE.md coexistence rules, graphify from the graphify-kb fork (expected version, recorded in kb/config.yaml + kb/SETUP.md) with raw/.graphifyignore excluding every raw document and a graph built over code + docs/ + wiki/, kb/SETUP.md, suggestions.",
+   "files": [
+    "corpus-rfp"
+   ],
+   "assertions": [
+    "Every binary has a converted .md beside it",
+    "ZIP extracted into a sibling folder",
+    "Duplicate PDF flagged by status",
+    "No image left PENDENTE",
+    "Domain ontology created from preset (kb/ontology/<prefix>.ttl)",
+    "Engine validate passes",
+    "Mappings for both spreadsheets",
+    "All 6 requirement rows extracted as instances",
+    "RACI assignments extracted (16 cells)",
+    "Proposal validity divergence surfaced (60 vs 90 days)",
+    "Environments divergence surfaced (4 vs 3)",
+    "Workspace /kb skill generated",
+    "CLAUDE.md routes source questions to /kb and restricts graphify",
+    "graphify installed from the fork at the expected version (graphify --version == graphify.version in kb/config.yaml)",
+    "graphify graph built (graphify-out/graph.json) without raw/ documents (raw/.graphifyignore lists them; no raw/graphify-out cache)",
+    "OneDrive/Teams guidance follows Microsoft (shortcut + always keep on device + conflict copies)",
+    "kb/SETUP.md records decisions and authorizations",
+    "Checkpoint proposal written (ontology/mappings/rules)"
+   ]
+  },
+  {
+   "id": 3,
+   "name": "incremental-update",
+   "prompt": "I just added an addendum to the RFP (raw/rfp/Addendum_01.pdf) and edited our kickoff note in wiki/. Please update the knowledge base for {WS} and tell me what changed. (Test harness: no questions possible; record any question in {OUT}/questions.md.)",
+   "expected_output": "Only the new/changed sources processed (others unchanged), lock acquired/released, new conflict detected and resolved by precedence (addendum is newer: proposal validity 120 days wins), note re-indexed, validate ok, concise change report with citations, improvement suggestions; graphify version checked and graph updated for the changed wiki note, but not run on raw/ (not authorized).",
+   "files": [
+    "fixture-initialized"
+   ],
+   "assertions": [
+    "Only the new addendum and the edited note were reprocessed",
+    "Proposal validity now resolved to 120 days (newer addendum wins)",
+    "Curator lock released",
+    "Engine validate passes",
+    "No image left PENDENTE",
+    "Change report mentions the addendum, the note and the validity change with citations",
+    "graphify not run over raw/ (no raw graphify cache)",
+    "Improvement suggestions recorded or reported",
+    "graphify graph updated after the wiki change (graphify-out/graph.json newer than before the update)"
+   ]
+  },
+  {
+   "id": 4,
+   "name": "token-eval",
+   "prompt": "Run the token/time/quality evaluation for {WS}: compare answering without the KB, with graphify only, and with the full KB. To keep this test short use 4 questions and 1 run; the authorized subset is raw/rfp/RFP_Customer_Platform_v1.2.pdf, raw/rfp/Attachment 3 - Security requirements.pdf and raw/rfp/General_contract_terms.docx. (Test harness: no questions possible.)",
+   "expected_output": "Questions + answer key by subagent (not shown in main context), graphify built over the subset only in a subagent with cost logged, per-question answering subagents for 3 configurations, runs.jsonl with tokens/duration/tool_uses from notifications, grades.json, volume JSONs, report.md via eval_report.py in kb/evals/<date>/ relating cost to volume and build cost/break-even, caveats, suggestions.",
+   "files": [
+    "fixture-initialized"
+   ],
+   "assertions": [
+    "Eval report written to kb/evals/<date>/report.md",
+    "Report relates cost to data volume (volume table + tokens per 1k words)",
+    "Report covers the 3 configurations",
+    "Report includes build cost / break-even section",
+    "summary.json has measured tokens for 3 configurations",
+    "Quality measured (accuracy/citation per configuration)",
+    "No answer key or document excerpts stored in kb/evals",
+    "Build costs logged with kb.py log-cost",
+    "graphify scope limited to the authorized subset",
+    "Questions saved without answers"
+   ]
+  }
+ ]
+}

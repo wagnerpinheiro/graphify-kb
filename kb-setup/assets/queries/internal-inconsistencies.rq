@@ -1,0 +1,18 @@
+# Internal inconsistencies: the SAME source states different values for one topic/fact
+# (e.g. two different horizons in one document). Cross-source conflicts: conflicts.rq.
+PREFIX kb: <http://kb.local/core#>
+PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
+PREFIX dcterms: <http://purl.org/dc/terms/>
+
+SELECT ?fact ?source (GROUP_CONCAT(DISTINCT ?v; separator=" | ") AS ?values) (GROUP_CONCAT(DISTINCT STR(?pg); separator=", ") AS ?pages)
+WHERE {
+  GRAPH ?g {
+    ?s kb:topic ?t ; rdfs:label ?fact ; kb:definedIn ?doc .
+    { ?s kb:value ?v } UNION { ?s kb:duration ?v }
+    OPTIONAL { ?s kb:page ?pg }
+  }
+  ?doc dcterms:source ?source .
+}
+GROUP BY ?fact ?source
+HAVING (COUNT(DISTINCT ?v) > 1)
+ORDER BY ?fact ?source

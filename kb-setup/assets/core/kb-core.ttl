@@ -1,0 +1,105 @@
+# kb-setup core ontology (engine 2.x). Generic, domain-independent terms used by kb.py.
+# Each workspace adds its own domain ontology in kb/ontology/<prefix>.ttl (subclasses/properties of these).
+# Labels: English (default) + Portuguese + Spanish. Instances live in the workspace namespace (id:).
+
+@prefix kb:      <http://kb.local/core#> .
+@prefix rdf:     <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs:    <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix owl:     <http://www.w3.org/2002/07/owl#> .
+@prefix xsd:     <http://www.w3.org/2001/XMLSchema#> .
+@prefix dcterms: <http://purl.org/dc/terms/> .
+@prefix prov:    <http://www.w3.org/ns/prov#> .
+@prefix skos:    <http://www.w3.org/2004/02/skos/core#> .
+
+<http://kb.local/core> a owl:Ontology ;
+    rdfs:label "kb-setup core ontology"@en ;
+    owl:versionInfo "2.0.0" .
+
+# ------------------------------------------------------------------ sources and structure
+kb:Source a owl:Class ; rdfs:label "Source"@en, "Fonte"@pt, "Fuente"@es ;
+    rdfs:comment "Origin of statements: a document in raw/ (layer raw) or a note in wiki/ (layer wiki)."@en .
+kb:Document a owl:Class ; rdfs:subClassOf kb:Source, prov:Entity ; rdfs:label "Document"@en, "Documento"@pt, "Documento"@es .
+kb:WikiNote a owl:Class ; rdfs:subClassOf kb:Source, prov:Entity ; rdfs:label "Wiki note"@en, "Nota do wiki"@pt, "Nota del wiki"@es ;
+    rdfs:comment "Team note with review header (title, type, last_reviewed, reviewed_by, review_every, overrides)."@en .
+kb:Section a owl:Class ; rdfs:label "Section"@en, "Seção"@pt, "Sección"@es .
+kb:Person a owl:Class ; rdfs:subClassOf prov:Agent ; rdfs:label "Person"@en, "Pessoa"@pt, "Persona"@es .
+
+# ------------------------------------------------------------------ knowledge items
+kb:Fact a owl:Class ; rdfs:label "Fact"@en, "Fato"@pt, "Hecho"@es ;
+    rdfs:comment "Concept + value consolidated across sources in id:topic/<name> (config `facts`/`topics`); divergent values become conflicts resolved by precedence."@en .
+kb:Deadline a owl:Class ; rdfs:label "Deadline"@en, "Prazo"@pt, "Plazo"@es ;
+    rdfs:comment "Date or duration stated in a document sentence; topic deadlines converge in id:topic/<topic>."@en .
+kb:Milestone a owl:Class ; rdfs:label "Milestone"@en, "Marco"@pt, "Hito"@es .
+kb:Figure a owl:Class ; rdfs:label "Figure / diagram"@en, "Figura"@pt, "Figura"@es ;
+    rdfs:comment "Described image or rendered diagram page (description written by an image subagent)."@en .
+kb:Term a owl:Class ; rdfs:subClassOf skos:Concept ; rdfs:label "Glossary term"@en, "Termo do glossário"@pt, "Término del glosario"@es .
+kb:Decision a owl:Class ; rdfs:label "Decision"@en, "Decisão"@pt, "Decisión"@es .
+kb:Hypothesis a owl:Class ; rdfs:label "Hypothesis / assumption"@en, "Hipótese / premissa"@pt, "Hipótesis / supuesto"@es .
+
+# ------------------------------------------------------------------ projects and responsibilities (RACI)
+kb:Activity a owl:Class ; rdfs:subClassOf kb:Process ; rdfs:label "Activity"@en, "Atividade"@pt, "Actividad"@es .
+kb:Role a owl:Class ; rdfs:label "Role / stakeholder"@en, "Papel"@pt, "Rol"@es .
+kb:Deliverable a owl:Class ; rdfs:label "Deliverable"@en, "Entregável"@pt, "Entregable"@es .
+kb:RACIAssignment a owl:Class ; rdfs:label "RACI assignment"@en, "Atribuição RACI"@pt, "Asignación RACI"@es .
+kb:activity a owl:ObjectProperty ; rdfs:domain kb:RACIAssignment ; rdfs:label "activity"@en .
+kb:role a owl:ObjectProperty ; rdfs:domain kb:RACIAssignment ; rdfs:range kb:Role ; rdfs:label "role"@en .
+kb:raciCode a owl:DatatypeProperty ; rdfs:label "RACI code"@en .
+kb:responsible a owl:ObjectProperty ; rdfs:range kb:Role ; rdfs:label "responsible (R)"@en, "responsável (R)"@pt .
+kb:accountable a owl:ObjectProperty ; rdfs:range kb:Role ; rdfs:label "accountable (A)"@en, "aprovador (A)"@pt .
+kb:consulted a owl:ObjectProperty ; rdfs:range kb:Role ; rdfs:label "consulted (C)"@en, "consultado (C)"@pt .
+kb:informed a owl:ObjectProperty ; rdfs:range kb:Role ; rdfs:label "informed (I)"@en, "informado (I)"@pt .
+kb:deliverable a owl:ObjectProperty ; rdfs:range kb:Deliverable ; rdfs:label "deliverable"@en .
+kb:phase a owl:DatatypeProperty ; rdfs:label "phase"@en, "fase"@pt .
+kb:order a owl:DatatypeProperty ; rdfs:label "order"@en, "ordem"@pt .
+kb:description a owl:DatatypeProperty ; rdfs:label "description"@en, "descrição"@pt .
+kb:Process a owl:Class ; rdfs:label "Process"@en, "Processo"@pt, "Proceso"@es .
+kb:System a owl:Class ; rdfs:label "System"@en, "Sistema"@pt, "Sistema"@es .
+kb:Module a owl:Class ; rdfs:subClassOf kb:System ; rdfs:label "Module"@en, "Módulo"@pt, "Módulo"@es .
+kb:system a owl:ObjectProperty ; rdfs:range kb:System ; rdfs:label "system"@en, "sistema"@pt .
+
+# ------------------------------------------------------------------ provenance and location
+kb:definedIn a owl:ObjectProperty ; rdfs:subPropertyOf prov:wasDerivedFrom ; rdfs:range kb:Source ; rdfs:label "defined in"@en, "definido em"@pt .
+kb:inSection a owl:ObjectProperty ; rdfs:range kb:Section ; rdfs:label "in section"@en .
+kb:parentSection a owl:ObjectProperty ; rdfs:domain kb:Section ; rdfs:range kb:Section ; rdfs:label "parent section"@en .
+kb:page a owl:DatatypeProperty ; rdfs:range xsd:integer ; rdfs:label "page"@en, "página"@pt .
+kb:sheet a owl:DatatypeProperty ; rdfs:label "sheet"@en, "aba"@pt .
+kb:row a owl:DatatypeProperty ; rdfs:range xsd:integer ; rdfs:label "row"@en, "linha"@pt .
+kb:rowCount a owl:DatatypeProperty ; rdfs:range xsd:integer ; rdfs:label "row count"@en .
+kb:excerpt a owl:DatatypeProperty ; rdfs:label "excerpt"@en, "trecho"@pt ; rdfs:comment "Literal supporting text."@en .
+kb:originalId a owl:DatatypeProperty ; rdfs:label "original id"@en, "id original"@pt .
+kb:number a owl:DatatypeProperty ; rdfs:label "section number"@en, "numeração"@pt .
+kb:mentionsId a owl:DatatypeProperty ; rdfs:label "mentions id"@en .
+kb:references a owl:ObjectProperty ; rdfs:label "references"@en, "referencia"@pt .
+kb:referenceText a owl:DatatypeProperty ; rdfs:label "unresolved / divergent reference"@en .
+kb:linksTo a owl:ObjectProperty ; rdfs:label "links to (note link)"@en, "liga a"@pt .
+kb:noteType a owl:DatatypeProperty ; rdfs:label "note type (fleeting | literature | permanent)"@en .
+kb:hypothesisKind a owl:DatatypeProperty ; rdfs:label "hypothesis kind"@en .
+
+# ------------------------------------------------------------------ values, deadlines, topics
+kb:date a owl:DatatypeProperty ; rdfs:label "date"@en, "data"@pt .
+kb:duration a owl:DatatypeProperty ; rdfs:label "duration"@en, "duração"@pt .
+kb:value a owl:DatatypeProperty ; rdfs:label "value"@en, "valor"@pt .
+kb:topic a owl:DatatypeProperty ; rdfs:label "topic"@en, "tema"@pt .
+kb:aboutTopic a owl:ObjectProperty ; rdfs:label "about topic"@en .
+
+# ------------------------------------------------------------------ source metadata and precedence (per named graph)
+kb:layer a owl:DatatypeProperty ; rdfs:label "layer (raw | wiki)"@en, "camada"@pt .
+kb:extractionMethod a owl:DatatypeProperty ; rdfs:label "extraction method (det | llm)"@en .
+kb:graphSource a owl:ObjectProperty ; rdfs:range kb:Source ; rdfs:label "source of the named graph"@en .
+kb:family a owl:DatatypeProperty ; rdfs:label "version family"@en, "família de versões"@pt .
+kb:version a owl:DatatypeProperty ; rdfs:label "version"@en, "versão"@pt .
+kb:versionKey a owl:DatatypeProperty ; rdfs:label "sortable version key"@en .
+kb:overrides a owl:ObjectProperty ; rdfs:domain kb:WikiNote ; rdfs:label "overrides"@en, "sobrepõe"@pt ;
+    rdfs:comment "Explicit override: the note prevails over the given raw/ document or entity."@en .
+kb:overridesRef a owl:DatatypeProperty ; rdfs:label "overrides (textual reference)"@en .
+kb:replaces a owl:ObjectProperty ; rdfs:subPropertyOf dcterms:replaces ; rdfs:label "replaces"@en .
+kb:headerInferred a owl:DatatypeProperty ; rdfs:range xsd:boolean ; rdfs:label "header inferred"@en .
+kb:reviewEvery a owl:DatatypeProperty ; rdfs:label "review every"@en .
+kb:reviewOverdue a owl:DatatypeProperty ; rdfs:range xsd:boolean ; rdfs:label "review overdue"@en .
+kb:daysOverdue a owl:DatatypeProperty ; rdfs:range xsd:integer ; rdfs:label "days overdue"@en .
+
+# ------------------------------------------------------------------ generic domain relations (optional use)
+kb:requires a owl:ObjectProperty ; rdfs:label "requires"@en, "exige"@pt .
+kb:satisfies a owl:ObjectProperty ; rdfs:label "satisfies"@en, "atende"@pt .
+kb:dependsOn a owl:ObjectProperty ; rdfs:label "depends on"@en, "depende de"@pt .
+kb:contradicts a owl:ObjectProperty, owl:SymmetricProperty ; rdfs:label "contradicts"@en, "contradiz"@pt .

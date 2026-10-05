@@ -1,0 +1,53 @@
+# Preset erp-rollout-program — `topics:` block for kb/config.yaml (deadline/condition topics).
+#
+# What a topic does: every deadline sentence whose accent-free lowercase text matches `pattern` (Python regex,
+# re.search) converges on one entity id:topic/<key> (class kb:Deadline). The same condition stated in different
+# status reports (e.g. the go-live date in week 3 vs. week 7) then shows up as a conflict, and precedence picks
+# the winner. Without topics, deadlines are one entity per occurrence and never collide.
+#
+# Engine behavior confirmed on the source engagement (3 kickoff/status documents, engine 2.0.0):
+#   - topics are only tested on sentences the engine already detected as deadlines: a deadline keyword AND a
+#     parsed date or duration in the SAME sentence. Dense slide-deck text often states a date-bearing fact
+#     without a full prose sentence around it (e.g. a bullet with a bare year), so a topic can validate with
+#     zero hits on kickoff decks and only start firing once status reports use fuller sentences. Verify with
+#     the workspace's own documents before assuming a topic "works" — zero hits is not a bug by itself.
+#   - patterns run over folded text: lowercase, accents removed (ç->c, ã->a, ñ->n). Write patterns without accents.
+#
+# How kb-setup uses this file at init:
+#   1. A subagent tests each pattern against the converted .md of authorized documents and reports hit counts
+#      per document and page (never client excerpts to the main context).
+#   2. Keep patterns specific: a pattern that matches unrelated deadlines merges different conditions into one
+#      entity and creates false conflicts.
+#   3. Add workspace-specific topics the subagent finds (any condition with a deadline stated in 2+ documents).
+#   4. Present the final list for approval (checkpoint) together with the ontology.
+
+topics:
+  legacy-decommission-date:
+    label: Legacy system decommission date
+    # the source engagement's legacy systems were literally "ECC" and "AS/400"; replace with the names of the
+    # systems the adopting program is retiring.
+    pattern: "(ecc|as ?/? ?400).{0,80}decommiss|decommiss.{0,80}(ecc|as ?/? ?400)"
+
+  go-live-bigbang-date:
+    label: Go-live Big Bang date
+    pattern: "big bang.{0,100}go.?live|go.?live.{0,100}big bang"
+
+  lock-the-scope-date:
+    label: Lock the scope date
+    pattern: "lock the scope|travar o escopo|trava do escopo"
+
+  rollout-model:
+    label: Rollout model/approach
+    pattern: "rollout (approach|model)"
+
+  program-scope-full:
+    label: Full program scope statement
+    pattern: "full scope of (the )?program|escopo (completo|total) do programa"
+
+  go-live-strategy:
+    label: Go-live strategy
+    pattern: "go.?live strateg|estrategia de go.?live"
+
+  cutover-date:
+    label: Cutover date
+    pattern: "cutover|corte de virada|data de corte"

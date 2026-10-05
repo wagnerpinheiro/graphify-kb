@@ -1,0 +1,34 @@
+# Precedence: for each (subject, property) whose value sets differ between sources, the WINNING value(s).
+# Same rule as beats() in kb.py: (1) a wiki note with `overrides:` pointing to the document (or the subject) wins;
+# (2) otherwise raw/ wins over wiki/; (3) same layer: most recent dcterms:modified, then higher version key.
+# Overdue notes do NOT lose precedence (alert only).
+PREFIX kb: <http://kb.local/core#>
+PREFIX dcterms: <http://purl.org/dc/terms/>
+PREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>
+PREFIX prov: <http://www.w3.org/ns/prov#>
+
+SELECT ?s ?p ?value ?g ?layer ?date ?version WHERE {
+  GRAPH ?g { ?s ?p ?value }
+  FILTER(?g != <urn:kb:ontology> && !STRSTARTS(STR(?s), "urn:kb:"))
+  FILTER(?p NOT IN (rdf:type, kb:definedIn, kb:page, kb:row, kb:sheet, kb:inSection, kb:parentSection,
+                    prov:wasDerivedFrom, kb:originalId))
+  ?g kb:layer ?layer .
+  OPTIONAL { ?g dcterms:modified ?d0 }  BIND(COALESCE(STR(?d0), "") AS ?date)
+  OPTIONAL { ?g kb:versionKey ?v0 }     BIND(COALESCE(?v0, "") AS ?version)
+  FILTER EXISTS { GRAPH ?gx { ?s ?p ?ox } FILTER(?gx != ?g) FILTER NOT EXISTS { GRAPH ?gx { ?s ?p ?value } } }
+  FILTER NOT EXISTS {
+    GRAPH ?g2 { ?s ?p ?o2 }
+    FILTER(?g2 != ?g)
+    ?g2 kb:layer ?l2 .
+    OPTIONAL { ?g2 dcterms:modified ?d2x }  BIND(COALESCE(STR(?d2x), "") AS ?d2)
+    OPTIONAL { ?g2 kb:versionKey ?v2x }     BIND(COALESCE(?v2x, "") AS ?v2)
+    FILTER(
+      (?l2 = "wiki" && EXISTS { ?g2 kb:overrides ?x . FILTER(?x = ?s || EXISTS { ?g kb:graphSource ?x }) })
+      ||
+      ( !(?layer = "wiki" && EXISTS { ?g kb:overrides ?y . FILTER(?y = ?s || EXISTS { ?g2 kb:graphSource ?y }) })
+        && ( (?l2 = "raw" && ?layer = "wiki")
+             || (?l2 = ?layer && (?d2 > ?date || (?d2 = ?date && ?v2 > ?version))) ) )
+    )
+  }
+}
+ORDER BY ?s ?p

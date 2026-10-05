@@ -1,0 +1,25 @@
+# Milestones and deadlines (dates and durations) with topic, source and page. Preset rfi-proposal.
+# Topic entities (id:topic/<key>, config `topics`) carry kb:topic: the same condition from several documents is one
+# row per source, so divergent values are visible here; the winner comes from the precedence/conflicts queries
+# or `KB show id:topic/<key>`.
+PREFIX {{PREFIX}}: <{{NAMESPACE}}>
+PREFIX kb: <http://kb.local/core#>
+PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
+PREFIX dcterms: <http://purl.org/dc/terms/>
+
+SELECT DISTINCT ?kind ?topic ?date ?duration ?description ?source ?page WHERE {
+  GRAPH ?g {
+    VALUES ?cls { kb:Milestone kb:Deadline }
+    ?x a ?cls ; kb:definedIn ?doc .
+    OPTIONAL { ?x kb:topic ?topic }
+    OPTIONAL { ?x kb:date ?date }
+    OPTIONAL { ?x kb:duration ?duration }
+    OPTIONAL { ?x rdfs:label ?l }
+    OPTIONAL { ?x kb:excerpt ?t }
+    OPTIONAL { ?x kb:page ?page }
+  }
+  ?doc dcterms:source ?source .
+  BIND(STRAFTER(STR(?cls), "#") AS ?kind)
+  BIND(SUBSTR(COALESCE(?l, ?t, ""), 1, 120) AS ?description)
+}
+ORDER BY ?topic ?source ?page ?date

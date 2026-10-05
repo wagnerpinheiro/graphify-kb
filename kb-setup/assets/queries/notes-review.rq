@@ -1,0 +1,15 @@
+# Wiki notes: last review date and reviewer, type, overdue and inferred headers.
+PREFIX kb: <http://kb.local/core#>
+PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
+PREFIX dcterms: <http://purl.org/dc/terms/>
+PREFIX prov: <http://www.w3.org/ns/prov#>
+
+SELECT DISTINCT ?note ?type ?lastReviewed ?reviewer ?overdue ?daysOverdue ?inferred WHERE {
+  GRAPH ?g { ?n a kb:WikiNote ; dcterms:source ?note ; dcterms:modified ?lastReviewed ; prov:wasAttributedTo ?a .
+             OPTIONAL { ?n kb:noteType ?type } }
+  ?a rdfs:label ?reviewer .
+  OPTIONAL { ?g kb:reviewOverdue ?v } BIND(COALESCE(?v, false) AS ?overdue)
+  OPTIONAL { ?g kb:daysOverdue ?daysOverdue }
+  OPTIONAL { ?g kb:headerInferred ?h } BIND(COALESCE(?h, false) AS ?inferred)
+}
+ORDER BY DESC(?overdue) ?lastReviewed

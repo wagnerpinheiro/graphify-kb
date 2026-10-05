@@ -1,0 +1,19 @@
+# RACI responsibilities by role across every RACI spreadsheet (project, testing...), with source, sheet and row.
+# Roles with the same header text in different spreadsheets share one entity, so differences between matrices
+# appear side by side (same role + same activity label, different code -> candidate conflict).
+# Preset rfi-proposal; uses core terms only (the domain prefix is declared for consistency with the other queries).
+PREFIX {{PREFIX}}: <{{NAMESPACE}}>
+PREFIX kb: <http://kb.local/core#>
+PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
+PREFIX dcterms: <http://purl.org/dc/terms/>
+
+SELECT DISTINCT ?role ?code ?activity ?phase ?source ?sheet ?row WHERE {
+  ?att a kb:RACIAssignment ; kb:role ?r ; kb:activity ?a ; kb:raciCode ?code ; kb:definedIn ?doc .
+  OPTIONAL { ?att kb:sheet ?sheet }
+  OPTIONAL { ?att kb:row ?row }
+  ?r rdfs:label ?role .
+  ?a rdfs:label ?activity .
+  OPTIONAL { ?a kb:phase ?phase }
+  ?doc dcterms:source ?source .
+}
+ORDER BY ?role ?source ?row

@@ -1,0 +1,81 @@
+# Knowledge base configuration (read by the central engine ~/.claude/skills/kb-setup/scripts/kb.py).
+# Paths are always relative to the workspace root. Managed by /kb-setup; edit with care.
+engine_version: "{{engine_version}}"
+title: "{{title}}"
+language: {{language}}            # language of the workspace content (en | pt | es ...); answers follow the asker
+versioning: {{versioning}}        # git | onedrive | both
+
+ontology:
+  prefix: {{prefix}}              # domain ontology prefix (kb/ontology/{{prefix}}.ttl); core terms use kb:
+  namespace: "{{namespace}}"
+  instances: "{{instances}}"
+
+# Default review period for wiki/ notes (d, w, m = 30 days).
+review_every: 14d
+
+# Curator lock (OneDrive is advisory: agree on the team channel before running update).
+lock_timeout: 2h
+
+# graphify is required (installed from the graphify-kb fork, see kb-setup references/graphify.md).
+# `version` is the graphify version this workspace was built with; kb-setup warns when `graphify --version` differs.
+graphify:
+  version: "0.9.76"
+  source: "https://github.com/wagnerpinheiro/graphify-kb"
+  scope: [code, docs, wiki]   # raw/ documents only when authorized (raw/.graphifyignore + kb/SETUP.md)
+
+sources:
+  raw: [raw]
+  wiki: [wiki]
+  never_index: [docs, kb, scripts, .claude, .git, graphify-out]   # docs/ is never indexed
+
+images:
+  min_width: 120          # px; smaller images are icons/decoration
+  min_height: 80
+  min_area: 30000
+  repeated_min_pages: 3   # same image on N+ pages = logo/header (ignored)
+  repeated_page_ratio: 0.3
+  vector_threshold: 60    # vector objects outside tables to render the page as PNG (diagrams)
+  render_scale: 2.0
+
+pdf:
+  strip_repeated_lines: true   # remove repeated headers/footers
+  repeated_line_ratio: 0.5
+  heading_size_ratio: 1.15     # font >= 1.15x body becomes a heading
+  frame_table_ratio: 0.5       # "table" larger than 50% of the page = layout frame (ignored)
+
+xlsx:
+  max_empty_rows: 50      # stop reading after N consecutive empty rows
+
+# Versions of the same document ("most recent wins"). Without entries, the engine groups by common name prefix.
+families: {}
+
+# Extra class for sections of some documents (glob over path or file name), e.g. "Contract_*": {{prefix}}:Clause
+section_class: {}
+
+# Deadline/condition topics: sentences with a deadline that match the regex (over accent-free lowercase text)
+# converge in id:topic/<topic>, so divergent values across documents become conflicts resolved by precedence.
+topics: {}
+#  proposal-validity: {label: "Proposal validity", pattern: "validity.{0,60}proposal|proposal.{0,60}validity"}
+
+# Quantitative facts: concept (context regex) + value (regex with 1 group) searched in a window around the context.
+# normalize: count | count_distinct | months | number | acronyms | (empty = captured text)
+facts: {}
+#  number-of-environments:
+#    label: Number of environments
+#    context: 'environments?\b[^.;]{0,60}?\bdevelopment'
+#    value: '(development\b[^.;]{0,180}?\bproduction)'
+#    normalize: count
+#    min: 2
+#    unit: environments
+
+# Official attachment list per document family (resolves "Attachment N" references, incl. wrong numbering).
+attachments: []
+#  - id: compliance-matrix
+#    title: "Attachment 1 - Compliance matrix"
+#    file: "raw/.../Attachment 1 - Compliance matrix.xlsx"
+#    aliases: ["compliance matrix"]
+#    numbers: {<family>: [1]}
+
+# Extra literal properties used by `ask` ranking (prefixed name: weight).
+ask:
+  text_props: {}
